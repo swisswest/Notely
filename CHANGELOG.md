@@ -90,11 +90,11 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
   konfigurierbare Tageszeiten, Windows-Benachrichtigungen mit Dublettenschutz,
   Tray-Icon, Autostart, Einstellungen, SQLite mit Migrationen.
 
-[Unveröffentlicht]: https://github.com/DEIN-GITHUB-NAME/notely/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.5.0
-[0.4.0]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.4.0
-[0.3.0]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.3.0
-[0.2.0]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.2.0
-[0.1.2]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.1.2
-[0.1.1]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.1.1
-[0.1.0]: https://github.com/DEIN-GITHUB-NAME/notely/releases/tag/v0.1.0
+[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/swisswest/Notely/releases/tag/v0.5.0
+[0.4.0]: https://github.com/swisswest/Notely/releases/tag/v0.4.0
+[0.3.0]: https://github.com/swisswest/Notely/releases/tag/v0.3.0
+[0.2.0]: https://github.com/swisswest/Notely/releases/tag/v0.2.0
+[0.1.2]: https://github.com/swisswest/Notely/releases/tag/v0.1.2
+[0.1.1]: https://github.com/swisswest/Notely/releases/tag/v0.1.1
+[0.1.0]: https://github.com/swisswest/Notely/releases/tag/v0.1.0

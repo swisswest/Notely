@@ -10,8 +10,8 @@ Eine native Windows-11-Desktop-App: freier Notiztext geht an die Claude API,
 zurück kommen strukturierte Aufgaben mit Datum und Uhrzeit — aufgelöst gegen
 deine eigenen Tageszeiten.
 
-[![CI](https://github.com/DEIN-GITHUB-NAME/notely/actions/workflows/ci.yml/badge.svg)](https://github.com/DEIN-GITHUB-NAME/notely/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/DEIN-GITHUB-NAME/notely?include_prereleases&sort=semver)](https://github.com/DEIN-GITHUB-NAME/notely/releases)
+[![CI](https://github.com/swisswest/notely/actions/workflows/ci.yml/badge.svg)](https://github.com/swisswest/notely/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/swisswest/notely?include_prereleases&sort=semver)](https://github.com/swisswest/notely/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078d4)
 
@@ -19,9 +19,7 @@ deine eigenen Tageszeiten.
 
 ---
 
-> [!NOTE]
-> Ersetze `DEIN-GITHUB-NAME` in den Badge-URLs durch deinen GitHub-Benutzernamen und lege
-> einen Screenshot unter `docs/screenshot.png` ab — dann ist die Startseite fertig.
+
 
 <!-- ![Notely](docs/screenshot.png) -->
 
@@ -76,7 +74,7 @@ benötigt. Ohne Key funktioniert alles ausser der Analyse.
 Build Tools mit „Desktop development with C++".
 
 ```powershell
-git clone https://github.com/DEIN-GITHUB-NAME/notely.git
+git clone https://github.com/swisswest/notely.git
 cd notely
 npm install
 npm run tauri:dev

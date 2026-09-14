@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Sicherheitsluecke melden
-    url: https://github.com/DEIN-GITHUB-NAME/notely/security/advisories/new
+    url: https://github.com/swisswest/Notely/security/advisories/new
     about: Bitte nicht oeffentlich als Issue melden - siehe SECURITY.md
