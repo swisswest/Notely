@@ -1,0 +1,70 @@
+use std::path::PathBuf;
+
+use tauri::{AppHandle, Manager, State};
+
+use crate::backup::{self, BackupInfo, ImportSummary};
+use crate::db::settings as settings_repo;
+use crate::error::AppResult;
+use crate::state::AppState;
+use crate::{logging, window};
+
+fn documents(app: &AppHandle) -> Option<PathBuf> {
+    app.path().document_dir().ok()
+}
+
+fn target_dir(app: &AppHandle, state: &State<'_, AppState>) -> AppResult<PathBuf> {
+    let settings = state.db.with(settings_repo::load)?;
+    backup::resolve_dir(documents(app), &settings)
+}
+
+#[tauri::command]
+pub fn backup_directory(app: AppHandle, state: State<'_, AppState>) -> AppResult<String> {
+    Ok(target_dir(&app, &state)?.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn backup_now(app: AppHandle, state: State<'_, AppState>) -> AppResult<BackupInfo> {
+    let dir = target_dir(&app, &state)?;
+    let version = app.package_info().version.to_string();
+    let info = backup::write(&state.db, &version, &dir)?;
+
+    state.db.with(|conn| {
+        let mut settings = settings_repo::load(conn)?;
+        settings.backup.last_backup_at = Some(crate::domain::time::to_rfc3339(chrono::Local::now()));
+        settings_repo::save(conn, &settings)?;
+        let removed = backup::prune(&dir, settings.backup.keep)?;
+        if removed > 0 {
+            logging::info("backup", format!("{removed} alte Sicherungen entfernt"));
+        }
+        Ok(())
+    })?;
+
+    window::notify_data_changed(&app);
+    Ok(info)
+}
+
+#[tauri::command]
+pub fn list_backups(app: AppHandle, state: State<'_, AppState>) -> AppResult<Vec<BackupInfo>> {
+    backup::list(&target_dir(&app, &state)?)
+}
+
+/// Führt eine Sicherung mit dem Bestand zusammen. Bestehende Einträge
+/// bleiben unverändert - es kann nichts überschrieben werden.
+#[tauri::command]
+pub fn import_backup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    file_name: String,
+) -> AppResult<ImportSummary> {
+    let name = backup::safe_file_name(&file_name)?;
+    let path = target_dir(&app, &state)?.join(name);
+    let summary = backup::import(&state.db, &path)?;
+    window::notify_data_changed(&app);
+    Ok(summary)
+}
+
+#[tauri::command]
+pub fn export_markdown(app: AppHandle, state: State<'_, AppState>) -> AppResult<BackupInfo> {
+    let dir = target_dir(&app, &state)?;
+    backup::write_markdown(&state.db, &dir)
+}
