@@ -28,7 +28,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust-Build zwischenspeichern
-        uses: Swatinem/rust-cache3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
@@ -68,7 +68,7 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v3
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
