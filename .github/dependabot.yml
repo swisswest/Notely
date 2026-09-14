@@ -10,6 +10,9 @@ updates:
       # Kleinkram gesammelt, damit nicht jede Woche fuenf PRs aufgehen.
       patch-und-minor:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -20,8 +23,14 @@ updates:
     groups:
       patch-und-minor:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

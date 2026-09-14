@@ -16,10 +16,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Node einrichten
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -28,7 +28,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust-Build zwischenspeichern
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache3
         with:
           workspaces: src-tauri
 
@@ -48,7 +48,7 @@ jobs:
         run: npm run tauri:build
 
       - name: Installer als Artefakt sichern
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: notely-installer
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -62,13 +62,13 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v3
         with:
           workspaces: src-tauri
 
