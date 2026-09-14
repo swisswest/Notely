@@ -48,7 +48,7 @@ jobs:
         run: npm run tauri:build
 
       - name: Installer als Artefakt sichern
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: notely-installer
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
