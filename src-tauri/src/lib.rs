@@ -180,6 +180,9 @@ pub fn run() {
             commands::trash::empty_trash,
             commands::search::search,
             commands::settings::usage_summary,
+            commands::review::review_status,
+            commands::review::complete_review,
+            commands::backup::import_markdown,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");

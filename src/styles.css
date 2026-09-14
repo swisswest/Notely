@@ -657,6 +657,20 @@ p {
   font-size: 12px;
 }
 
+.review-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.review-row__meta {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
 .usage-grid {
   display: grid;
   grid-template-columns: 120px 1fr 1fr;

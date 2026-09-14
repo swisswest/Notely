@@ -152,6 +152,12 @@ export interface AppSettings {
     shortcut: string;
     analyze: boolean;
   };
+  review: {
+    enabled: boolean;
+    time: string;
+    lastCompletedDate: string | null;
+    lastNotifiedDate: string | null;
+  };
   timezone: string;
   onboardingCompleted: boolean;
 }
@@ -161,6 +167,20 @@ export interface BackupInfo {
   path: string;
   sizeBytes: number;
   createdAt: string;
+}
+
+export interface ReviewStatus {
+  due: boolean;
+  date: string;
+  time: string;
+  tasks: Task[];
+  completedToday: boolean;
+}
+
+export interface MarkdownImportSummary {
+  imported: number;
+  duplicates: number;
+  skipped: number;
 }
 
 export interface ImportSummary {

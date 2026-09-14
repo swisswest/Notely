@@ -9,9 +9,11 @@ import type {
   Folder,
   ImportSummary,
   Label,
+  MarkdownImportSummary,
   ModelInfo,
   Note,
   QuickResult,
+  ReviewStatus,
   SearchResults,
   Task,
   TaskDraft,
@@ -147,6 +149,12 @@ export const api = {
     list: () => call<BackupInfo[]>('list_backups'),
     import: (fileName: string) => call<ImportSummary>('import_backup', { fileName }),
     exportMarkdown: () => call<BackupInfo>('export_markdown'),
+    importMarkdown: (directory: string, folderId: string | null) =>
+      call<MarkdownImportSummary>('import_markdown', { directory, folderId }),
+  },
+  review: {
+    status: () => call<ReviewStatus>('review_status'),
+    complete: () => call<void>('complete_review'),
   },
   quick: {
     capture: (content: string) => call<QuickResult>('quick_capture', { content }),

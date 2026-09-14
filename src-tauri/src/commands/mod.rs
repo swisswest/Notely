@@ -3,6 +3,7 @@ pub mod backup;
 pub mod notes;
 pub mod organization;
 pub mod quick;
+pub mod review;
 pub mod search;
 pub mod settings;
 pub mod system;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button, Checkbox, Field, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
-import { refreshAll, refreshStatus, reportError, showToast } from '@/lib/store';
+import { refreshAll, refreshStatus, reportError, showToast, useStore } from '@/lib/store';
 import type { AppSettings, BackupInfo } from '@/types';
 import { formatDateTime } from '@/utils/date';
 
@@ -22,6 +22,25 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [shortcut, setShortcut] = useState(settings.quickCapture.shortcut);
+  const [importPath, setImportPath] = useState('');
+  const [importFolder, setImportFolder] = useState('');
+  const folders = useStore((state) => state.folders);
+
+  const importMarkdown = async () => {
+    setBusy(true);
+    try {
+      const summary = await api.backup.importMarkdown(importPath.trim(), importFolder || null);
+      showToast({
+        kind: 'success',
+        message: `${summary.imported} Notiz(en) importiert, ${summary.duplicates} Dublette(n), ${summary.skipped} übersprungen`,
+      });
+      await refreshAll();
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const reload = useCallback(async () => {
     try {
@@ -140,6 +159,39 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
       </section>
 
       <section className="settings__group">
+        <h3 className="settings__group-title">Tagesabschluss</h3>
+        <p className="field__hint" style={{ marginBottom: 10 }}>
+          Am Abend zeigt Notely, was heute offen geblieben ist - erledigt abhaken oder mit einem
+          Klick auf morgen schieben. Erreichbar auch jederzeit über Strg+K.
+        </p>
+
+        <div className="field">
+          <Checkbox
+            checked={settings.review.enabled}
+            label="Abends an offene Aufgaben erinnern"
+            onChange={(checked) =>
+              onChange({ ...settings, review: { ...settings.review, enabled: checked } })
+            }
+          />
+        </div>
+
+        <Field label="Uhrzeit">
+          <TextInput
+            type="time"
+            className="input--compact"
+            value={settings.review.time}
+            disabled={!settings.review.enabled}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                review: { ...settings.review, time: event.currentTarget.value },
+              })
+            }
+          />
+        </Field>
+      </section>
+
+      <section className="settings__group">
         <h3 className="settings__group-title">Sicherung</h3>
         <p className="field__hint" style={{ marginBottom: 10 }}>
           Notizen und Tasks liegen nur auf diesem Rechner. Die Sicherung schreibt alles als
@@ -204,6 +256,37 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
         ) : (
           <p className="field__hint">Noch keine Sicherung erstellt.</p>
         )}
+
+        <div className="divider" />
+
+        <Field
+          label="Markdown-Ordner importieren"
+          hint="Liest .md, .markdown und .txt aus einem Ordner als Notizen ein - nicht rekursiv. Inhalte, die schon als Notiz existieren, werden übersprungen."
+        >
+          <div className="field__row">
+            <TextInput
+              value={importPath}
+              placeholder="C:\Users\...\Notizen"
+              spellCheck={false}
+              onChange={(event) => setImportPath(event.currentTarget.value)}
+            />
+            <select
+              className="select input--compact"
+              value={importFolder}
+              onChange={(event) => setImportFolder(event.currentTarget.value)}
+            >
+              <option value="">Ohne Ordner</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+            <Button onClick={() => void importMarkdown()} disabled={busy || !importPath.trim()}>
+              Importieren
+            </Button>
+          </div>
+        </Field>
 
         {backups.length > 0 ? (
           <>

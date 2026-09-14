@@ -179,6 +179,94 @@ pub fn write_markdown(db: &Db, dir: &Path) -> AppResult<BackupInfo> {
     info_for(&path)
 }
 
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownImportSummary {
+    pub imported: usize,
+    /// Dateien, deren Inhalt schon als Notiz existiert.
+    pub duplicates: usize,
+    /// Dateien, die zu gross oder nicht lesbar waren.
+    pub skipped: usize,
+}
+
+const MAX_MARKDOWN_FILES: usize = 500;
+const MAX_MARKDOWN_BYTES: u64 = 1024 * 1024;
+const MARKDOWN_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
+
+/// Liest alle Textdateien eines Ordners als Notizen ein. Nicht rekursiv, damit
+/// nachvollziehbar bleibt, was importiert wird.
+pub fn import_markdown(
+    db: &Db,
+    dir: &Path,
+    folder_id: Option<&str>,
+) -> AppResult<MarkdownImportSummary> {
+    if !dir.is_dir() {
+        return Err(AppError::validation(
+            "Der angegebene Ordner existiert nicht",
+        ));
+    }
+
+    let existing: std::collections::HashSet<String> = db.with(|conn| {
+        Ok(notes::list_all(conn)?
+            .into_iter()
+            .map(|note| normalize(&note.content))
+            .collect())
+    })?;
+
+    let mut summary = MarkdownImportSummary::default();
+    let mut seen = existing;
+
+    let entries = fs::read_dir(dir)
+        .map_err(|err| AppError::Internal(format!("Ordner nicht lesbar: {err}")))?;
+
+    for entry in entries.flatten().take(MAX_MARKDOWN_FILES) {
+        let path = entry.path();
+        let matches_extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| MARKDOWN_EXTENSIONS.contains(&value.to_lowercase().as_str()))
+            .unwrap_or(false);
+        if !path.is_file() || !matches_extension {
+            continue;
+        }
+
+        let too_big = fs::metadata(&path)
+            .map(|meta| meta.len() > MAX_MARKDOWN_BYTES)
+            .unwrap_or(true);
+        if too_big {
+            summary.skipped += 1;
+            continue;
+        }
+
+        let Ok(content) = fs::read_to_string(&path) else {
+            summary.skipped += 1;
+            continue;
+        };
+        if content.trim().is_empty() {
+            summary.skipped += 1;
+            continue;
+        }
+
+        let fingerprint = normalize(&content);
+        if seen.contains(&fingerprint) {
+            summary.duplicates += 1;
+            continue;
+        }
+
+        db.with(|conn| notes::create(conn, content.trim(), folder_id))?;
+        seen.insert(fingerprint);
+        summary.imported += 1;
+    }
+
+    logging::info(TARGET, format!("Markdown-Import: {summary:?}"));
+    Ok(summary)
+}
+
+/// Vergleichsform für die Dublettenprüfung: Whitespace vereinheitlicht.
+fn normalize(content: &str) -> String {
+    content.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 pub fn list(dir: &Path) -> AppResult<Vec<BackupInfo>> {
     if !dir.exists() {
         return Ok(Vec::new());
@@ -524,6 +612,31 @@ mod tests {
             .collect();
         assert!(names.contains(&"Arbeit".to_string()));
         assert!(names.iter().any(|name| name.starts_with("Arbeit (Import")));
+    }
+
+    #[test]
+    fn markdown_import_skips_duplicates_and_junk() {
+        let dir = std::env::temp_dir().join(format!("notely-md-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).expect("tempdir");
+        fs::write(dir.join("eins.md"), "Erste Notiz").expect("write");
+        fs::write(dir.join("zwei.markdown"), "Zweite  Notiz").expect("write");
+        fs::write(dir.join("kopie.md"), "Zweite Notiz").expect("write");
+        fs::write(dir.join("leer.md"), "   ").expect("write");
+        fs::write(dir.join("bild.png"), "kein Text").expect("write");
+
+        let db = Db::open_in_memory().expect("db");
+        let summary = import_markdown(&db, &dir, None).expect("import");
+
+        assert_eq!(summary.imported, 2);
+        assert_eq!(summary.duplicates, 1);
+        assert_eq!(summary.skipped, 1);
+
+        // Zweiter Durchlauf bringt nichts Neues.
+        let again = import_markdown(&db, &dir, None).expect("import");
+        assert_eq!(again.imported, 0);
+        assert_eq!(again.duplicates, 3);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

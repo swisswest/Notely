@@ -84,7 +84,7 @@ npm run tauri:build
 
 Ergebnisse:
 
-- `src-tauri\target\release\bundle\nsis\Notely_0.3.0_x64-setup.exe` - Installer, Installation im
+- `src-tauri\target\release\bundle\nsis\Notely_0.5.0_x64-setup.exe` - Installer, Installation im
   Benutzerprofil, keine Adminrechte nötig. **Empfohlen**, weil erst die Startmenue-Verknuepfung die
   AUMID liefert, über die Windows-Toasts zuverlaessig laufen.
 - `src-tauri\target\release\notely.exe` - portable EXE, läuft direkt, Benachrichtigungen koennen
@@ -122,6 +122,16 @@ gelöscht, ein doppelter Import ändert nichts. Zusätzlich gibt es einen Markdo
 anderen. Text eintippen, Enter - die Notiz wird gespeichert und, wenn ein API-Key hinterlegt ist,
 direkt analysiert. Braucht ein Vorschlag Bestätigung, öffnet sich das Hauptfenster mit dem Dialog.
 Die Notiz ist immer gespeichert, bevor die Analyse startet.
+
+## Tagesabschluss und Import
+
+**Tagesabschluss**: ab der eingestellten Uhrzeit (Standard 18:00) meldet Notely, was heute offen
+geblieben ist. Der Dialog kennt zwei Aktionen - abhaken oder auf morgen schieben - und lässt sich
+jederzeit über Strg+K öffnen. Einmal pro Tag, danach erst wieder am nächsten.
+
+**Markdown-Import** (Settings -> Sicherung): liest `.md`, `.markdown` und `.txt` aus einem Ordner
+als Notizen ein, nicht rekursiv. Inhalte, die bereits als Notiz existieren, werden übersprungen -
+ein zweiter Durchlauf ändert nichts. Optional landen alle importierten Notizen in einem Ordner.
 
 ## Sicherheit
 

@@ -9,8 +9,10 @@ import { EVENTS, api } from '@/lib/ipc';
 import {
   clearToast,
   closeDialog,
+  openReviewDialog,
   openSuggestionDialog,
   openTaskDialog,
+  reportError,
   requestOpenNote,
   refreshAll,
   refreshNotes,
@@ -25,6 +27,7 @@ import { InboxView } from '@/features/inbox/InboxView';
 import { NotesView } from '@/features/notes/NotesView';
 import { SuggestionDialog } from '@/features/notes/SuggestionDialog';
 import { OnboardingDialog } from '@/features/onboarding/OnboardingDialog';
+import { ReviewDialog } from '@/features/review/ReviewDialog';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { TaskDialog } from '@/features/tasks/TaskDialog';
 import { TasksView } from '@/features/tasks/TasksView';
@@ -44,6 +47,7 @@ const TITLES: Record<ViewId, string> = {
 };
 
 const SEARCH_PREVIEW_CHARS = 70;
+const REVIEW_CHECK_MS = 60 * 60 * 1000;
 
 export function App() {
   const status = useStore((state) => state.status);
@@ -127,6 +131,28 @@ export function App() {
     return [...taskEntries, ...noteEntries];
   }, []);
 
+  /** Prüft, ob der Tagesabschluss ansteht - beim Start und dann stündlich. */
+  const checkReview = useCallback(async (force: boolean) => {
+    try {
+      const status = await api.review.status();
+      if (force) {
+        openReviewDialog(status);
+        return;
+      }
+      if (status.due && !status.completedToday && status.tasks.length > 0) {
+        openReviewDialog(status);
+      }
+    } catch (error) {
+      if (force) reportError(error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkReview(false);
+    const timer = window.setInterval(() => void checkReview(false), REVIEW_CHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [checkReview]);
+
   const commands = useMemo<Command[]>(
     () => [
       { id: 'today', label: 'Heute anzeigen', hint: 'Strg+1', run: () => setView('today') },
@@ -137,10 +163,11 @@ export function App() {
       { id: 'new-note', label: 'Neue Notiz', hint: 'Strg+N', run: goToNotes },
       { id: 'settings', label: 'Einstellungen öffnen', run: () => setView('settings') },
       { id: 'trash', label: 'Papierkorb anzeigen', run: () => setView('trash') },
+      { id: 'review', label: 'Tagesabschluss öffnen', run: () => void checkReview(true) },
       { id: 'hide', label: 'Fenster in den Tray legen', run: () => void api.system.hideWindow() },
       { id: 'quit', label: 'Notely beenden', run: () => void api.system.quit() },
     ],
-    [goToNotes],
+    [goToNotes, checkReview],
   );
 
   const hotkeys = useMemo(
@@ -216,6 +243,9 @@ export function App() {
       {dialog?.kind === 'task' ? <TaskDialog task={dialog.task} onClose={closeDialog} /> : null}
       {dialog?.kind === 'suggestions' ? (
         <SuggestionDialog result={dialog.result} onClose={closeDialog} />
+      ) : null}
+      {dialog?.kind === 'review' ? (
+        <ReviewDialog status={dialog.status} onClose={closeDialog} />
       ) : null}
       {paletteOpen ? (
         <CommandPalette

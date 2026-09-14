@@ -138,6 +138,7 @@ pub struct AppSettings {
     pub appearance: AppearanceSettings,
     pub backup: BackupSettings,
     pub quick_capture: QuickCaptureSettings,
+    pub review: ReviewSettings,
     /// IANA-Zeitzone, vom Frontend beim Start gemeldet.
     pub timezone: String,
     pub onboarding_completed: bool,
@@ -154,6 +155,7 @@ impl Default for AppSettings {
             appearance: AppearanceSettings::default(),
             backup: BackupSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
+            review: ReviewSettings::default(),
             timezone: String::new(),
             onboarding_completed: false,
         }
@@ -199,6 +201,29 @@ impl Default for QuickCaptureSettings {
             enabled: true,
             shortcut: "Ctrl+Alt+N".to_string(),
             analyze: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ReviewSettings {
+    pub enabled: bool,
+    /// Ab dieser Uhrzeit gilt der Tagesabschluss als fällig.
+    pub time: String,
+    /// Letzter Tag, an dem der Abschluss abgeschlossen wurde (YYYY-MM-DD).
+    pub last_completed_date: Option<String>,
+    /// Letzter Tag, an dem dafür benachrichtigt wurde.
+    pub last_notified_date: Option<String>,
+}
+
+impl Default for ReviewSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            time: "18:00".to_string(),
+            last_completed_date: None,
+            last_notified_date: None,
         }
     }
 }
@@ -320,6 +345,11 @@ impl AppSettings {
         }
         if self.backup.directory.len() > 400 {
             return Err(AppError::validation("Backup-Pfad ist zu lang"));
+        }
+        if crate::domain::time::parse_time(&self.review.time).is_none() {
+            return Err(AppError::validation(
+                "Uhrzeit für den Tagesabschluss ist ungültig",
+            ));
         }
         if self.quick_capture.enabled && !is_valid_shortcut(&self.quick_capture.shortcut) {
             return Err(AppError::validation(

@@ -1,7 +1,15 @@
 import { useSyncExternalStore } from 'react';
 
 import { api, describeError } from '@/lib/ipc';
-import type { AnalysisResult, AppStatus, Folder, Label, Note, Task } from '@/types';
+import type {
+  AnalysisResult,
+  AppStatus,
+  Folder,
+  Label,
+  Note,
+  ReviewStatus,
+  Task,
+} from '@/types';
 
 export interface Toast {
   kind: 'info' | 'success' | 'error';
@@ -11,6 +19,7 @@ export interface Toast {
 export type DialogState =
   | { kind: 'task'; task: Task | null }
   | { kind: 'suggestions'; result: AnalysisResult }
+  | { kind: 'review'; status: ReviewStatus }
   | null;
 
 interface StoreState {
@@ -79,6 +88,10 @@ export function openTaskDialog(task: Task | null = null): void {
 
 export function openSuggestionDialog(result: AnalysisResult): void {
   setState({ dialog: { kind: 'suggestions', result } });
+}
+
+export function openReviewDialog(status: ReviewStatus): void {
+  setState({ dialog: { kind: 'review', status } });
 }
 
 export function closeDialog(): void {

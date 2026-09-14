@@ -1,6 +1,6 @@
 [package]
 name = "notely"
-version = "0.4.0"
+version = "0.5.0"
 description = "Notizen, Aufgaben und Claude-Analyse für Windows"
 authors = ["Westcon"]
 edition = "2021"

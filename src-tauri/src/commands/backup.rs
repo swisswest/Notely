@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, State};
 
-use crate::backup::{self, BackupInfo, ImportSummary};
+use crate::backup::{self, BackupInfo, ImportSummary, MarkdownImportSummary};
 use crate::db::settings as settings_repo;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use crate::{logging, window};
 
@@ -59,6 +59,31 @@ pub fn import_backup(
     let name = backup::safe_file_name(&file_name)?;
     let path = target_dir(&app, &state)?.join(name);
     let summary = backup::import(&state.db, &path)?;
+    window::notify_data_changed(&app);
+    Ok(summary)
+}
+
+/// Liest Textdateien aus einem Ordner als Notizen ein.
+#[tauri::command]
+pub fn import_markdown(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    directory: String,
+    folder_id: Option<String>,
+) -> AppResult<MarkdownImportSummary> {
+    let path = PathBuf::from(directory.trim());
+    if !path.is_absolute() {
+        return Err(AppError::validation(
+            "Bitte den vollständigen Pfad zum Ordner angeben",
+        ));
+    }
+
+    let folder_id = match folder_id {
+        Some(id) => Some(crate::domain::validation::identifier(&id, "Ordner-ID")?),
+        None => None,
+    };
+
+    let summary = backup::import_markdown(&state.db, &path, folder_id.as_deref())?;
     window::notify_data_changed(&app);
     Ok(summary)
 }
