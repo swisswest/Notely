@@ -29,6 +29,8 @@ interface StoreState {
   dialog: DialogState;
   /** Zähler, mit dem andere Ansichten eine neue Notiz anfordern. */
   newNoteSignal: number;
+  /** Von der Suche angeforderte Notiz; der Zähler löst das Öffnen aus. */
+  openNote: { id: string; token: number } | null;
 }
 
 const initialState: StoreState = {
@@ -45,6 +47,7 @@ const initialState: StoreState = {
   noteLabels: [],
   dialog: null,
   newNoteSignal: 0,
+  openNote: null,
 };
 
 let state: StoreState = initialState;
@@ -84,6 +87,11 @@ export function closeDialog(): void {
 
 export function requestNewNote(): void {
   setState({ newNoteSignal: state.newNoteSignal + 1 });
+}
+
+/** Öffnet eine bestimmte Notiz im Editor - aus der Suche heraus. */
+export function requestOpenNote(id: string): void {
+  setState({ openNote: { id, token: (state.openNote?.token ?? 0) + 1 } });
 }
 
 export function showToast(toast: Toast): void {

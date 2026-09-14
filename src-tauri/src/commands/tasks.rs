@@ -4,7 +4,7 @@ use tauri::{AppHandle, State};
 use crate::db::models::{Task, TaskDraft, TaskEdit};
 use crate::db::{notification_history, settings as settings_repo, tasks as repo};
 use crate::domain::{time, validation};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use crate::window;
 
@@ -33,7 +33,7 @@ pub fn update_task(app: AppHandle, state: State<'_, AppState>, edit: TaskEdit) -
 #[tauri::command]
 pub fn delete_task(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<()> {
     let id = validation::identifier(&id, "Task-ID")?;
-    state.db.with(|conn| repo::delete(conn, &id))?;
+    state.db.with(|conn| repo::soft_delete(conn, &id))?;
     window::notify_data_changed(&app);
     Ok(())
 }
@@ -100,6 +100,67 @@ pub fn list_tasks(
             completed_limit.unwrap_or(DEFAULT_COMPLETED_LIMIT),
         )
     })
+}
+
+/// Prüft eine ID-Liste aus dem Frontend, bevor sie in die Datenbank geht.
+fn checked_ids(ids: Vec<String>) -> AppResult<Vec<String>> {
+    if ids.is_empty() {
+        return Err(AppError::validation("Keine Tasks ausgewählt"));
+    }
+    if ids.len() > repo::MAX_BULK {
+        return Err(AppError::validation(format!(
+            "Maximal {} Tasks auf einmal",
+            repo::MAX_BULK
+        )));
+    }
+    ids.into_iter()
+        .map(|id| validation::identifier(&id, "Task-ID"))
+        .collect()
+}
+
+#[tauri::command]
+pub fn bulk_set_completed(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    completed: bool,
+) -> AppResult<usize> {
+    let ids = checked_ids(ids)?;
+    let changed = state
+        .db
+        .with(|conn| repo::bulk_set_completed(conn, &ids, completed))?;
+    window::notify_data_changed(&app);
+    Ok(changed)
+}
+
+/// Verschiebt mehrere Tasks auf ein Datum. `dueDate = null` nimmt den Termin weg.
+#[tauri::command]
+pub fn bulk_reschedule(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    due_date: Option<String>,
+    due_time: Option<String>,
+) -> AppResult<usize> {
+    let ids = checked_ids(ids)?;
+    let (date, time_value) = validation::due_pair(due_date.as_deref(), due_time.as_deref())?;
+    let changed = state.db.with(|conn| {
+        repo::bulk_reschedule(conn, &ids, date.as_deref(), time_value.as_deref())
+    })?;
+    window::notify_data_changed(&app);
+    Ok(changed)
+}
+
+#[tauri::command]
+pub fn bulk_delete(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> AppResult<usize> {
+    let ids = checked_ids(ids)?;
+    let changed = state.db.with(|conn| repo::bulk_delete(conn, &ids))?;
+    window::notify_data_changed(&app);
+    Ok(changed)
 }
 
 #[tauri::command]

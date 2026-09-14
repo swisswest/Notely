@@ -36,6 +36,7 @@ export function NotesView() {
   const labelFilter = useStore((state) => state.noteLabels);
   const autoAnalyze = useStore((state) => state.status?.settings.ai.autoAnalyzeOnSave ?? false);
   const newNoteSignal = useStore((state) => state.newNoteSignal);
+  const openNoteRequest = useStore((state) => state.openNote);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -63,6 +64,17 @@ export function NotesView() {
     () => tasks.filter((task) => task.sourceNoteId && task.sourceNoteId === selectedId),
     [tasks, selectedId],
   );
+
+  // Aus der Suche heraus wird eine bestimmte Notiz geöffnet.
+  useEffect(() => {
+    if (!openNoteRequest) return;
+    const note = notes.find((entry) => entry.id === openNoteRequest.id);
+    if (!note) return;
+    setSelectedId(note.id);
+    setDraft(note.content);
+    setDraftFolder(note.folderId ?? '');
+    setDirty(false);
+  }, [openNoteRequest, notes]);
 
   useEffect(() => {
     if (newNoteSignal === 0) return;

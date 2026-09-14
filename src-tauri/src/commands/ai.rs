@@ -5,7 +5,9 @@ use crate::db::models::{
     AnalysisResult, Task, TaskDraft, TaskSuggestion, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED,
     ANALYSIS_STATUS_OK,
 };
-use crate::db::{notes as note_repo, settings as settings_repo, tasks as task_repo};
+use crate::db::{
+    notes as note_repo, settings as settings_repo, tasks as task_repo, usage as usage_repo,
+};
 use crate::domain::validation;
 use crate::error::AppResult;
 use crate::security::secrets::SecretStore;
@@ -30,8 +32,10 @@ pub async fn analyze_note(
 
     let api_key = SecretStore::require_api_key()?;
 
-    let outcome = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content).await {
-        Ok(outcome) => outcome,
+    let (outcome, usage) = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content)
+        .await
+    {
+        Ok(result) => result,
         Err(err) => {
             let _ = state.db.with(|conn| {
                 note_repo::set_analysis_status(conn, &note_id, ANALYSIS_STATUS_FAILED)
@@ -40,6 +44,10 @@ pub async fn analyze_note(
             return Err(err);
         }
     };
+
+    let _ = state.db.with(|conn| {
+        usage_repo::record(conn, &settings.claude.model, usage, Some(&note_id))
+    });
 
     for reason in &outcome.rejected {
         logging::warn("ai", format!("Vorschlag verworfen: {reason}"));

@@ -27,6 +27,7 @@ function task(overrides: Partial<Task>): Task {
     aiGenerated: false,
     confidence: null,
     snoozedUntil: null,
+    deletedAt: null,
     ...overrides,
   };
 }

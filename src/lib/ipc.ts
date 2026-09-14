@@ -12,10 +12,13 @@ import type {
   ModelInfo,
   Note,
   QuickResult,
+  SearchResults,
   Task,
   TaskDraft,
   TaskEdit,
   TaskSuggestion,
+  TrashContents,
+  UsageSummary,
 } from '@/types';
 
 export type ErrorCode =
@@ -107,7 +110,22 @@ export const api = {
     snooze: (id: string, minutes?: number) =>
       call<Task>('snooze_task', { id, minutes: minutes ?? null }),
     clearSnooze: (id: string) => call<Task>('clear_snooze', { id }),
+    bulkComplete: (ids: string[], completed: boolean) =>
+      call<number>('bulk_set_completed', { ids, completed }),
+    bulkReschedule: (ids: string[], dueDate: string | null, dueTime: string | null) =>
+      call<number>('bulk_reschedule', { ids, dueDate, dueTime }),
+    bulkDelete: (ids: string[]) => call<number>('bulk_delete', { ids }),
   },
+  trash: {
+    list: () => call<TrashContents>('list_trash'),
+    restoreNote: (id: string) => call<Note>('restore_note', { id }),
+    restoreTask: (id: string) => call<Task>('restore_task', { id }),
+    purgeNote: (id: string) => call<void>('purge_note', { id }),
+    purgeTask: (id: string) => call<void>('purge_task', { id }),
+    empty: () => call<number>('empty_trash'),
+  },
+  search: (term: string, limit?: number) =>
+    call<SearchResults>('search', { term, limit: limit ?? null }),
   ai: {
     analyze: (noteId: string) => call<AnalysisResult>('analyze_note', { noteId }),
     createFromSuggestions: (noteId: string, suggestions: TaskSuggestion[]) =>
@@ -121,6 +139,7 @@ export const api = {
     testConnection: (model?: string) =>
       call<ConnectionTest>('test_connection', { model: model ?? null }),
     models: () => call<ModelInfo[]>('list_models'),
+    usage: () => call<UsageSummary>('usage_summary'),
   },
   backup: {
     directory: () => call<string>('backup_directory'),

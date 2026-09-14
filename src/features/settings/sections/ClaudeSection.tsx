@@ -3,9 +3,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Field, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
 import { refreshStatus, reportError, showToast, useStore } from '@/lib/store';
-import type { AppSettings, ModelInfo } from '@/types';
+import type { AppSettings, ModelInfo, UsageSummary } from '@/types';
 
 const CUSTOM_OPTION = '__custom__';
+
+function formatTokens(value: number): string {
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
+  return `${(value / 1_000_000).toFixed(2)}M`;
+}
 
 interface ClaudeSectionProps {
   settings: AppSettings;
@@ -22,6 +28,14 @@ export function ClaudeSection({ settings, onChange }: ClaudeSectionProps) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [customModel, setCustomModel] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+
+  useEffect(() => {
+    api.settings
+      .usage()
+      .then(setUsage)
+      .catch(() => undefined);
+  }, []);
 
   const loadModels = useCallback(async (silent: boolean) => {
     setLoadingModels(true);
@@ -181,6 +195,27 @@ export function ClaudeSection({ settings, onChange }: ClaudeSectionProps) {
           </Button>
         </div>
       </Field>
+
+      {usage ? (
+        <Field
+          label="Verbrauch"
+          hint="Tokens laut API. Was das kostet, hängt vom Modell ab - die Preise stehen in der Anthropic Console."
+        >
+          <div className="usage-grid">
+            <span>Heute</span>
+            <span>{usage.today.analyses} Analysen</span>
+            <span>{formatTokens(usage.today.inputTokens + usage.today.outputTokens)} Tokens</span>
+
+            <span>Dieser Monat</span>
+            <span>{usage.month.analyses} Analysen</span>
+            <span>{formatTokens(usage.month.inputTokens + usage.month.outputTokens)} Tokens</span>
+
+            <span>Gesamt</span>
+            <span>{usage.total.analyses} Analysen</span>
+            <span>{formatTokens(usage.total.inputTokens + usage.total.outputTokens)} Tokens</span>
+          </div>
+        </Field>
+      ) : null}
     </section>
   );
 }

@@ -1,3 +1,5 @@
+import type { MouseEvent } from 'react';
+
 import type { Task } from '@/types';
 import { Button, Checkbox } from '@/components/ui';
 import { formatDayLabel, isOverdue, toIsoDate } from '@/utils/date';
@@ -10,7 +12,7 @@ interface TaskRowProps {
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onSnooze?: (task: Task) => void;
-  onFocus?: (task: Task) => void;
+  onSelect?: (task: Task, event: MouseEvent<HTMLDivElement>) => void;
 }
 
 export function TaskRow({
@@ -21,10 +23,18 @@ export function TaskRow({
   onEdit,
   onDelete,
   onSnooze,
-  onFocus,
+  onSelect,
 }: TaskRowProps) {
   const today = toIsoDate(new Date());
   const overdue = isOverdue(task, new Date());
+
+  // Klicks auf Checkbox oder Buttons dürfen die Auswahl nicht verändern.
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!onSelect) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, label')) return;
+    onSelect(task, event);
+  };
 
   return (
     <div
@@ -32,7 +42,8 @@ export function TaskRow({
       data-selected={selected}
       data-completed={task.completed}
       data-overdue={overdue}
-      onMouseEnter={() => onFocus?.(task)}
+      data-selectable={Boolean(onSelect)}
+      onClick={handleClick}
       onDoubleClick={() => onEdit(task)}
     >
       <Checkbox
@@ -60,7 +71,7 @@ export function TaskRow({
           <Button variant="ghost" onClick={() => onEdit(task)} title="Bearbeiten">
             Bearbeiten
           </Button>
-          <Button variant="danger" onClick={() => onDelete(task)} title="Löschen">
+          <Button variant="danger" onClick={() => onDelete(task)} title="In den Papierkorb">
             Löschen
           </Button>
         </span>

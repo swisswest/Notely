@@ -79,6 +79,14 @@ fn description(value: &str) -> AppResult<String> {
     Ok(value.trim().to_string())
 }
 
+/// Öffentliche Variante für Massenänderungen.
+pub fn due_pair(
+    date: Option<&str>,
+    time_value: Option<&str>,
+) -> AppResult<(Option<String>, Option<String>)> {
+    due(date, time_value)
+}
+
 fn due(date: Option<&str>, time_value: Option<&str>) -> AppResult<(Option<String>, Option<String>)> {
     let parsed_date = match date.map(str::trim).filter(|value| !value.is_empty()) {
         Some(value) => Some(

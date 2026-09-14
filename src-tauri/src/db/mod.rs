@@ -6,6 +6,7 @@ pub mod notes;
 pub mod notification_history;
 pub mod settings;
 pub mod tasks;
+pub mod usage;
 
 use std::path::Path;
 use std::sync::Mutex;

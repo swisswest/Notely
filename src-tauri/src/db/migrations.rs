@@ -84,6 +84,25 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX idx_notes_folder ON notes(folder_id);
     "#,
+    // 3 - Papierkorb und Verbrauchsstatistik
+    r#"
+    ALTER TABLE notes ADD COLUMN deleted_at TEXT;
+    ALTER TABLE tasks ADD COLUMN deleted_at TEXT;
+
+    CREATE INDEX idx_notes_deleted ON notes(deleted_at);
+    CREATE INDEX idx_tasks_deleted ON tasks(deleted_at);
+
+    CREATE TABLE ai_usage (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        occurred_at   TEXT NOT NULL,
+        model         TEXT NOT NULL,
+        input_tokens  INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        note_id       TEXT
+    );
+
+    CREATE INDEX idx_ai_usage_time ON ai_usage(occurred_at DESC);
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -132,12 +151,12 @@ mod tests {
         let tables: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
-                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels')",
+                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels','ai_usage')",
                 [],
                 |row| row.get(0),
             )
             .expect("tables");
-        assert_eq!(tables, 7);
+        assert_eq!(tables, 8);
     }
 
     #[test]

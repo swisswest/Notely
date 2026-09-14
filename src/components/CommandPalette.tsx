@@ -9,19 +9,28 @@ export interface Command {
 
 interface CommandPaletteProps {
   commands: Command[];
+  /** Liefert Treffer aus Notizen und Tasks zum eingegebenen Text. */
+  onSearch?: (term: string) => Promise<Command[]>;
   onClose: () => void;
 }
 
-export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
+const SEARCH_DELAY_MS = 180;
+const MIN_TERM_LENGTH = 2;
+
+export function CommandPalette({ commands, onSearch, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  const [results, setResults] = useState<Command[]>([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const matches = useMemo(() => {
+  const matchingCommands = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return commands;
     return commands.filter((command) => command.label.toLowerCase().includes(term));
   }, [commands, query]);
+
+  const entries = useMemo(() => [...matchingCommands, ...results], [matchingCommands, results]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -29,13 +38,39 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
 
   useEffect(() => {
     setActive(0);
-  }, [query]);
+    const term = query.trim();
+    if (!onSearch || term.length < MIN_TERM_LENGTH) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      onSearch(term)
+        .then((found) => {
+          if (!cancelled) setResults(found);
+        })
+        .catch(() => {
+          if (!cancelled) setResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, SEARCH_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, onSearch]);
 
   const runAt = (index: number) => {
-    const command = matches[index];
-    if (!command) return;
+    const entry = entries[index];
+    if (!entry) return;
     onClose();
-    command.run();
+    entry.run();
   };
 
   return (
@@ -50,7 +85,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
         <input
           ref={inputRef}
           className="palette__input"
-          placeholder="Befehl suchen"
+          placeholder="Befehl oder Suchbegriff"
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
           onKeyDown={(event) => {
@@ -58,7 +93,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
               onClose();
             } else if (event.key === 'ArrowDown') {
               event.preventDefault();
-              setActive((current) => Math.min(current + 1, matches.length - 1));
+              setActive((current) => Math.min(current + 1, entries.length - 1));
             } else if (event.key === 'ArrowUp') {
               event.preventDefault();
               setActive((current) => Math.max(current - 1, 0));
@@ -69,25 +104,30 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
           }}
         />
         <div className="palette__list">
-          {matches.length === 0 ? (
+          {entries.length === 0 ? (
             <p className="palette__hint" style={{ padding: '8px' }}>
-              Kein Befehl gefunden
+              {searching ? 'Sucht...' : 'Kein Treffer'}
             </p>
           ) : (
-            matches.map((command, index) => (
+            entries.map((entry, index) => (
               <button
-                key={command.id}
+                key={entry.id}
                 type="button"
                 className="palette__item"
                 data-active={index === active}
                 onMouseEnter={() => setActive(index)}
                 onClick={() => runAt(index)}
               >
-                <span>{command.label}</span>
-                {command.hint ? <span className="palette__hint">{command.hint}</span> : null}
+                <span>{entry.label}</span>
+                {entry.hint ? <span className="palette__hint">{entry.hint}</span> : null}
               </button>
             ))
           )}
+          {searching && entries.length > 0 ? (
+            <p className="palette__hint" style={{ padding: '6px 8px' }}>
+              Sucht...
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

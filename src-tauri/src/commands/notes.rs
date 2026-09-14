@@ -71,7 +71,7 @@ pub fn update_note(
 #[tauri::command]
 pub fn delete_note(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<()> {
     let id = validation::identifier(&id, "Notiz-ID")?;
-    state.db.with(|conn| repo::delete(conn, &id))?;
+    state.db.with(|conn| repo::soft_delete(conn, &id))?;
     window::notify_data_changed(&app);
     Ok(())
 }

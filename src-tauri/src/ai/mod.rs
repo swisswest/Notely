@@ -5,6 +5,7 @@ pub mod validation;
 
 use chrono::Local;
 
+use crate::db::usage::TokenUsage;
 use crate::domain::settings::AppSettings;
 use crate::error::{AppError, AppResult};
 use crate::logging;
@@ -21,10 +22,10 @@ pub async fn analyze_note(
     api_key: &str,
     settings: &AppSettings,
     note: &str,
-) -> AppResult<ValidationOutcome> {
+) -> AppResult<(ValidationOutcome, TokenUsage)> {
     let trimmed = note.trim();
     if trimmed.is_empty() {
-        return Ok(ValidationOutcome::default());
+        return Ok((ValidationOutcome::default(), TokenUsage::default()));
     }
     if trimmed.chars().count() > MAX_NOTE_CHARS {
         return Err(AppError::validation(format!(
@@ -36,7 +37,7 @@ pub async fn analyze_note(
     let tool = schema::build_tool_schema(settings);
     let user_message = prompt::build_user_message(trimmed, settings, now);
 
-    let raw_value = client
+    let (raw_value, usage) = client
         .extract_tasks(
             api_key,
             &settings.claude.model,
@@ -54,11 +55,12 @@ pub async fn analyze_note(
     logging::info(
         "ai",
         format!(
-            "Analyse abgeschlossen: {} Vorschläge, {} verworfen",
+            "Analyse abgeschlossen: {} Vorschläge, {} verworfen, {} Tokens",
             outcome.suggestions.len(),
-            outcome.rejected.len()
+            outcome.rejected.len(),
+            usage.total()
         ),
     );
 
-    Ok(outcome)
+    Ok((outcome, usage))
 }

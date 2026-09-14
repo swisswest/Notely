@@ -117,6 +117,7 @@ mod tests {
             ai_generated: true,
             confidence: Some(0.95),
             snoozed_until: None,
+            deleted_at: None,
         }
     }
 

@@ -3,6 +3,7 @@ use tauri::{AppHandle, State};
 
 use crate::ai::ModelInfo;
 use crate::db::settings as repo;
+use crate::db::usage::{self as usage_repo, UsageSummary};
 use crate::domain::settings::AppSettings;
 use crate::error::{AppError, AppResult};
 use crate::security::secrets::SecretStore;
@@ -119,6 +120,13 @@ pub async fn test_connection(
         }),
         Err(err) => Err(err),
     }
+}
+
+/// Token-Verbrauch der bisherigen Analysen. Kosten hängen vom Modell ab und
+/// werden bewusst nicht in Franken geschätzt.
+#[tauri::command]
+pub fn usage_summary(state: State<'_, AppState>) -> AppResult<UsageSummary> {
+    state.db.with(usage_repo::summary)
 }
 
 #[tauri::command]

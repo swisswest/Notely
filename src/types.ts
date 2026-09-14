@@ -6,6 +6,7 @@ export interface Note {
   analyzedAt: string | null;
   lastAnalysisStatus: AnalysisStatus | null;
   folderId: string | null;
+  deletedAt: string | null;
   labels: string[];
 }
 
@@ -42,6 +43,31 @@ export interface Task {
   aiGenerated: boolean;
   confidence: number | null;
   snoozedUntil: string | null;
+  deletedAt: string | null;
+}
+
+export interface TrashContents {
+  notes: Note[];
+  tasks: Task[];
+  retentionDays: number;
+}
+
+export interface SearchResults {
+  notes: Note[];
+  tasks: Task[];
+}
+
+export interface UsagePeriod {
+  analyses: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface UsageSummary {
+  today: UsagePeriod;
+  month: UsagePeriod;
+  total: UsagePeriod;
+  lastModel: string | null;
 }
 
 export interface TaskDraft {
@@ -172,4 +198,4 @@ export interface ModelInfo {
   displayName: string;
 }
 
-export type ViewId = 'today' | 'inbox' | 'tasks' | 'notes' | 'settings';
+export type ViewId = 'today' | 'inbox' | 'tasks' | 'notes' | 'trash' | 'settings';

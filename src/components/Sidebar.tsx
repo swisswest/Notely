@@ -57,6 +57,14 @@ export function Sidebar({ view, tasks, noteCount, version, onSelect }: SidebarPr
       <button
         type="button"
         className="sidebar__item"
+        aria-current={view === 'trash'}
+        onClick={() => onSelect('trash')}
+      >
+        <span>Papierkorb</span>
+      </button>
+      <button
+        type="button"
+        className="sidebar__item"
         aria-current={view === 'settings'}
         onClick={() => onSelect('settings')}
       >

@@ -11,6 +11,7 @@ import {
   closeDialog,
   openSuggestionDialog,
   openTaskDialog,
+  requestOpenNote,
   refreshAll,
   refreshNotes,
   refreshOrganization,
@@ -28,6 +29,7 @@ import { SettingsView } from '@/features/settings/SettingsView';
 import { TaskDialog } from '@/features/tasks/TaskDialog';
 import { TasksView } from '@/features/tasks/TasksView';
 import { TodayView } from '@/features/today/TodayView';
+import { TrashView } from '@/features/trash/TrashView';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { useTheme } from '@/hooks/useTheme';
 import type { AnalysisResult, ViewId } from '@/types';
@@ -37,8 +39,11 @@ const TITLES: Record<ViewId, string> = {
   inbox: 'Inbox',
   tasks: 'Tasks',
   notes: 'Notizen',
+  trash: 'Papierkorb',
   settings: 'Settings',
 };
+
+const SEARCH_PREVIEW_CHARS = 70;
 
 export function App() {
   const status = useStore((state) => state.status);
@@ -101,6 +106,27 @@ export function App() {
     };
   }, [goToNotes]);
 
+  /** Volltextsuche über Notizen und Tasks, direkt in der Befehlspalette. */
+  const searchProvider = useCallback(async (term: string): Promise<Command[]> => {
+    const results = await api.search(term);
+    const taskEntries: Command[] = results.tasks.map((task) => ({
+      id: `task:${task.id}`,
+      label: task.title,
+      hint: task.dueDate ? `Task · ${task.dueDate}` : 'Task',
+      run: () => openTaskDialog(task),
+    }));
+    const noteEntries: Command[] = results.notes.map((note) => ({
+      id: `note:${note.id}`,
+      label: note.content.replace(/\s+/g, ' ').slice(0, SEARCH_PREVIEW_CHARS),
+      hint: 'Notiz',
+      run: () => {
+        setView('notes');
+        requestOpenNote(note.id);
+      },
+    }));
+    return [...taskEntries, ...noteEntries];
+  }, []);
+
   const commands = useMemo<Command[]>(
     () => [
       { id: 'today', label: 'Heute anzeigen', hint: 'Strg+1', run: () => setView('today') },
@@ -110,6 +136,7 @@ export function App() {
       { id: 'new-task', label: 'Neuen Task erstellen', hint: 'Strg+T', run: () => openTaskDialog(null) },
       { id: 'new-note', label: 'Neue Notiz', hint: 'Strg+N', run: goToNotes },
       { id: 'settings', label: 'Einstellungen öffnen', run: () => setView('settings') },
+      { id: 'trash', label: 'Papierkorb anzeigen', run: () => setView('trash') },
       { id: 'hide', label: 'Fenster in den Tray legen', run: () => void api.system.hideWindow() },
       { id: 'quit', label: 'Notely beenden', run: () => void api.system.quit() },
     ],
@@ -163,7 +190,7 @@ export function App() {
                 Neue Notiz
               </Button>
             ) : null}
-            {view !== 'settings' && view !== 'notes' ? (
+            {view !== 'settings' && view !== 'notes' && view !== 'trash' ? (
               <Button variant="primary" onClick={() => openTaskDialog(null)}>
                 Neuer Task
               </Button>
@@ -182,6 +209,7 @@ export function App() {
             <NotesView />
           </div>
         ) : null}
+        {view === 'trash' ? <TrashView /> : null}
         {view === 'settings' ? <SettingsView /> : null}
       </main>
 
@@ -190,7 +218,11 @@ export function App() {
         <SuggestionDialog result={dialog.result} onClose={closeDialog} />
       ) : null}
       {paletteOpen ? (
-        <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />
+        <CommandPalette
+          commands={commands}
+          onSearch={searchProvider}
+          onClose={() => setPaletteOpen(false)}
+        />
       ) : null}
       {showOnboarding ? <OnboardingDialog onDone={() => setOnboardingDone(true)} /> : null}
       {toast ? <Toast toast={toast} onClose={clearToast} /> : null}

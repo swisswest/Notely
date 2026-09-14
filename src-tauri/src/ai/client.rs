@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::schema::TOOL_NAME;
+use crate::db::usage::TokenUsage;
 use crate::error::{AppError, AppResult};
 use crate::logging;
 
@@ -35,6 +36,7 @@ impl ClaudeClient {
 
     /// Führt einen Tool-Call aus und liefert ausschliesslich das Tool-Input
     /// zurück. Freitext des Modells wird bewusst ignoriert.
+    /// Liefert das Tool-Input und den gemeldeten Token-Verbrauch.
     pub async fn extract_tasks(
         &self,
         api_key: &str,
@@ -43,7 +45,7 @@ impl ClaudeClient {
         system: &str,
         user_message: &str,
         tool: Value,
-    ) -> AppResult<Value> {
+    ) -> AppResult<(Value, TokenUsage)> {
         let body = json!({
             "model": model,
             "max_tokens": max_tokens,
@@ -66,7 +68,8 @@ impl ClaudeClient {
             .map_err(map_transport_error)?;
 
         let payload = read_json(response).await?;
-        extract_tool_input(&payload)
+        let usage = extract_usage(&payload);
+        Ok((extract_tool_input(&payload)?, usage))
     }
 
     pub async fn list_models(&self, api_key: &str) -> AppResult<Vec<ModelInfo>> {
@@ -156,6 +159,23 @@ async fn read_json(response: reqwest::Response) -> AppResult<Value> {
     })
 }
 
+/// Fehlt der usage-Block, wird mit Null gezählt statt zu scheitern - die
+/// Statistik ist nie wichtiger als das eigentliche Ergebnis.
+fn extract_usage(payload: &Value) -> TokenUsage {
+    let read = |field: &str| {
+        payload
+            .get("usage")
+            .and_then(|usage| usage.get(field))
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .max(0)
+    };
+    TokenUsage {
+        input_tokens: read("input_tokens"),
+        output_tokens: read("output_tokens"),
+    }
+}
+
 fn extract_tool_input(payload: &Value) -> AppResult<Value> {
     let blocks = payload
         .get("content")
@@ -212,6 +232,20 @@ mod tests {
         let payload = json!({ "content": [], "stop_reason": "max_tokens" });
         let err = extract_tool_input(&payload).expect_err("fehler");
         assert!(err.to_string().contains("abgeschnitten"));
+    }
+
+    #[test]
+    fn reads_token_usage() {
+        let payload = json!({ "usage": { "input_tokens": 1234, "output_tokens": 56 } });
+        let usage = extract_usage(&payload);
+        assert_eq!(usage.input_tokens, 1234);
+        assert_eq!(usage.output_tokens, 56);
+        assert_eq!(usage.total(), 1290);
+    }
+
+    #[test]
+    fn missing_usage_counts_as_zero() {
+        assert_eq!(extract_usage(&json!({})), TokenUsage::default());
     }
 
     #[test]

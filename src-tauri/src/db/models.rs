@@ -15,6 +15,9 @@ pub struct Note {
     pub last_analysis_status: Option<String>,
     /// Eine Notiz liegt in höchstens einem Ordner.
     pub folder_id: Option<String>,
+    /// Gesetzt, solange die Notiz im Papierkorb liegt.
+    #[serde(default)]
+    pub deleted_at: Option<String>,
     /// Label-IDs; die Bezeichnungen löst die Oberfläche selbst auf.
     #[serde(default)]
     pub labels: Vec<String>,
@@ -84,6 +87,9 @@ pub struct Task {
     pub confidence: Option<f64>,
     /// RFC3339-Zeitpunkt, bis zu dem keine Benachrichtigung erzeugt wird.
     pub snoozed_until: Option<String>,
+    /// Gesetzt, solange der Task im Papierkorb liegt.
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

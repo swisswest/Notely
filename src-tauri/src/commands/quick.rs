@@ -4,7 +4,9 @@ use tauri::{AppHandle, Emitter, State};
 use crate::ai;
 use crate::db::models::{AnalysisResult, TaskDraft, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED,
                         ANALYSIS_STATUS_OK};
-use crate::db::{notes as note_repo, settings as settings_repo, tasks as task_repo};
+use crate::db::{
+    notes as note_repo, settings as settings_repo, tasks as task_repo, usage as usage_repo,
+};
 use crate::domain::validation;
 use crate::error::AppResult;
 use crate::quick;
@@ -51,8 +53,10 @@ pub async fn quick_capture(
     }
 
     let api_key = SecretStore::require_api_key()?;
-    let outcome = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content).await {
-        Ok(outcome) => outcome,
+    let (outcome, usage) = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content)
+        .await
+    {
+        Ok(result) => result,
         Err(err) => {
             let _ = state.db.with(|conn| {
                 note_repo::set_analysis_status(conn, &note.id, ANALYSIS_STATUS_FAILED)
@@ -67,6 +71,10 @@ pub async fn quick_capture(
             });
         }
     };
+
+    let _ = state.db.with(|conn| {
+        usage_repo::record(conn, &settings.claude.model, usage, Some(&note.id))
+    });
 
     let status = if outcome.suggestions.is_empty() {
         ANALYSIS_STATUS_EMPTY

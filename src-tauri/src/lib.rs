@@ -44,6 +44,20 @@ pub fn run() {
             let data_dir = handle.path().app_data_dir()?;
             let db = Db::open(&data_dir.join(DATABASE_FILE))?;
             let settings = db.with(settings_repo::load)?;
+
+            // Abgelaufene Papierkorb-Einträge verschwinden beim Start.
+            match db.with(|conn| {
+                let notes = crate::db::notes::purge_expired(conn, commands::trash::RETENTION_DAYS)?;
+                let tasks = crate::db::tasks::purge_expired(conn, commands::trash::RETENTION_DAYS)?;
+                Ok(notes + tasks)
+            }) {
+                Ok(count) if count > 0 => {
+                    logging::info("app", format!("{count} Eintraege aus dem Papierkorb entfernt"))
+                }
+                Err(err) => logging::warn("app", format!("Papierkorb nicht aufgeraeumt: {err}")),
+                _ => {}
+            }
+
             let claude = ClaudeClient::new()?;
             app.manage(AppState::new(db, claude));
 
@@ -155,6 +169,17 @@ pub fn run() {
             commands::quick::hide_quick_window,
             commands::quick::open_quick_window,
             commands::quick::set_quick_shortcut,
+            commands::tasks::bulk_set_completed,
+            commands::tasks::bulk_reschedule,
+            commands::tasks::bulk_delete,
+            commands::trash::list_trash,
+            commands::trash::restore_note,
+            commands::trash::restore_task,
+            commands::trash::purge_note,
+            commands::trash::purge_task,
+            commands::trash::empty_trash,
+            commands::search::search,
+            commands::settings::usage_summary,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");

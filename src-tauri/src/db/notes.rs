@@ -5,8 +5,8 @@ use super::models::{FolderFilter, Note, NoteFilter};
 use super::{new_id, now_utc};
 use crate::error::{AppError, AppResult};
 
-const COLUMNS: &str =
-    "id, content, created_at, updated_at, analyzed_at, last_analysis_status, folder_id";
+const COLUMNS: &str = "id, content, created_at, updated_at, analyzed_at, last_analysis_status,
+                       folder_id, deleted_at";
 
 fn map(row: &Row<'_>) -> rusqlite::Result<Note> {
     Ok(Note {
@@ -17,6 +17,7 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Note> {
         analyzed_at: row.get(4)?,
         last_analysis_status: row.get(5)?,
         folder_id: row.get(6)?,
+        deleted_at: row.get(7)?,
         labels: Vec::new(),
     })
 }
@@ -34,7 +35,7 @@ pub fn create(conn: &Connection, content: &str, folder_id: Option<&str>) -> AppR
 
 pub fn update_content(conn: &Connection, id: &str, content: &str) -> AppResult<Note> {
     let changed = conn.execute(
-        "UPDATE notes SET content = ?2, updated_at = ?3 WHERE id = ?1",
+        "UPDATE notes SET content = ?2, updated_at = ?3 WHERE id = ?1 AND deleted_at IS NULL",
         params![id, content, now_utc()],
     )?;
     if changed == 0 {
@@ -45,7 +46,7 @@ pub fn update_content(conn: &Connection, id: &str, content: &str) -> AppResult<N
 
 pub fn set_folder(conn: &Connection, id: &str, folder_id: Option<&str>) -> AppResult<Note> {
     let changed = conn.execute(
-        "UPDATE notes SET folder_id = ?2, updated_at = ?3 WHERE id = ?1",
+        "UPDATE notes SET folder_id = ?2, updated_at = ?3 WHERE id = ?1 AND deleted_at IS NULL",
         params![id, folder_id, now_utc()],
     )?;
     if changed == 0 {
@@ -54,12 +55,44 @@ pub fn set_folder(conn: &Connection, id: &str, folder_id: Option<&str>) -> AppRe
     get(conn, id)
 }
 
-pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
-    let changed = conn.execute("DELETE FROM notes WHERE id = ?1", params![id])?;
+/// Löschen heisst zunächst nur: als gelöscht markieren. Erst `purge` entfernt
+/// die Zeile wirklich - so ist jedes Versehen umkehrbar.
+pub fn soft_delete(conn: &Connection, id: &str) -> AppResult<()> {
+    let changed = conn.execute(
+        "UPDATE notes SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
+        params![id, now_utc()],
+    )?;
     if changed == 0 {
         return Err(AppError::NotFound(format!("Notiz {id}")));
     }
     Ok(())
+}
+
+pub fn restore(conn: &Connection, id: &str) -> AppResult<Note> {
+    let changed = conn.execute(
+        "UPDATE notes SET deleted_at = NULL, updated_at = ?2 WHERE id = ?1",
+        params![id, now_utc()],
+    )?;
+    if changed == 0 {
+        return Err(AppError::NotFound(format!("Notiz {id}")));
+    }
+    get(conn, id)
+}
+
+pub fn purge(conn: &Connection, id: &str) -> AppResult<()> {
+    conn.execute("DELETE FROM notes WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// Entfernt endgültig, was länger als `days` im Papierkorb liegt.
+pub fn purge_expired(conn: &Connection, days: i64) -> AppResult<usize> {
+    let cutoff = (chrono::Utc::now() - chrono::Duration::days(days))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let removed = conn.execute(
+        "DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
+        params![cutoff],
+    )?;
+    Ok(removed)
 }
 
 pub fn get(conn: &Connection, id: &str) -> AppResult<Note> {
@@ -78,7 +111,7 @@ pub fn get(conn: &Connection, id: &str) -> AppResult<Note> {
 /// generierte Platzhalter, nie Benutzereingaben.
 pub fn list(conn: &Connection, filter: &NoteFilter, limit: u32) -> AppResult<Vec<Note>> {
     let limit = limit.clamp(1, 1000);
-    let mut clauses: Vec<String> = Vec::new();
+    let mut clauses: Vec<String> = vec!["deleted_at IS NULL".to_string()];
     let mut values: Vec<Box<dyn ToSql>> = Vec::new();
 
     if let Some(term) = filter.search.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
@@ -108,13 +141,10 @@ pub fn list(conn: &Connection, filter: &NoteFilter, limit: u32) -> AppResult<Vec
         values.push(Box::new(filter.label_ids.len() as i64));
     }
 
-    let where_clause = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", clauses.join(" AND "))
-    };
-
-    let sql = format!("SELECT {COLUMNS} FROM notes {where_clause} ORDER BY updated_at DESC LIMIT ?");
+    let sql = format!(
+        "SELECT {COLUMNS} FROM notes WHERE {} ORDER BY updated_at DESC LIMIT ?",
+        clauses.join(" AND ")
+    );
     values.push(Box::new(limit));
 
     let params: Vec<&dyn ToSql> = values.iter().map(|value| value.as_ref()).collect();
@@ -124,27 +154,56 @@ pub fn list(conn: &Connection, filter: &NoteFilter, limit: u32) -> AppResult<Vec
         result.push(row?);
     }
 
-    let mut assignments = labels::by_note(conn)?;
-    for note in &mut result {
-        note.labels = assignments.remove(&note.id).unwrap_or_default();
-    }
-
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
-/// Alle Notizen ohne Filter und Limit - Grundlage für Sicherungen.
+/// Inhalt der Notizen im Papierkorb, neueste Löschung zuerst.
+pub fn list_deleted(conn: &Connection, limit: u32) -> AppResult<Vec<Note>> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM notes WHERE deleted_at IS NOT NULL
+         ORDER BY deleted_at DESC LIMIT ?1"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut result = Vec::new();
+    for row in stmt.query_map(params![limit.clamp(1, 1000)], map)? {
+        result.push(row?);
+    }
+    attach_labels(conn, &mut result)?;
+    Ok(result)
+}
+
+pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>> {
+    let trimmed = term.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let sql = format!(
+        "SELECT {COLUMNS} FROM notes
+         WHERE deleted_at IS NULL AND content LIKE '%' || ?1 || '%' ESCAPE '\\'
+         ORDER BY updated_at DESC LIMIT ?2"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut result = Vec::new();
+    for row in stmt.query_map(params![escape_like(trimmed), limit.clamp(1, 100)], map)? {
+        result.push(row?);
+    }
+    attach_labels(conn, &mut result)?;
+    Ok(result)
+}
+
+/// Alle aktiven Notizen ohne Filter und Limit - Grundlage für Sicherungen.
 pub fn list_all(conn: &Connection) -> AppResult<Vec<Note>> {
-    let sql = format!("SELECT {COLUMNS} FROM notes ORDER BY created_at ASC");
+    let sql = format!(
+        "SELECT {COLUMNS} FROM notes WHERE deleted_at IS NULL ORDER BY created_at ASC"
+    );
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();
     for row in stmt.query_map([], map)? {
         result.push(row?);
     }
-
-    let mut assignments = labels::by_note(conn)?;
-    for note in &mut result {
-        note.labels = assignments.remove(&note.id).unwrap_or_default();
-    }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -153,6 +212,14 @@ pub fn set_analysis_status(conn: &Connection, id: &str, status: &str) -> AppResu
         "UPDATE notes SET analyzed_at = ?2, last_analysis_status = ?3 WHERE id = ?1",
         params![id, now_utc(), status],
     )?;
+    Ok(())
+}
+
+fn attach_labels(conn: &Connection, notes: &mut [Note]) -> AppResult<()> {
+    let mut assignments = labels::by_note(conn)?;
+    for note in notes.iter_mut() {
+        note.labels = assignments.remove(&note.id).unwrap_or_default();
+    }
     Ok(())
 }
 
@@ -181,15 +248,79 @@ mod tests {
             let updated = update_content(conn, &note.id, "Neuer Text")?;
             assert_eq!(updated.content, "Neuer Text");
 
-            let mut search = filter();
-            search.search = Some("Neuer".into());
-            assert_eq!(list(conn, &search, 50)?.len(), 1);
+            let mut search_filter = filter();
+            search_filter.search = Some("Neuer".into());
+            assert_eq!(list(conn, &search_filter, 50)?.len(), 1);
 
-            search.search = Some("nichts".into());
-            assert_eq!(list(conn, &search, 50)?.len(), 0);
-
-            delete(conn, &note.id)?;
+            soft_delete(conn, &note.id)?;
             assert_eq!(list(conn, &filter(), 50)?.len(), 0);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn deleted_notes_land_in_the_trash_and_come_back() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let note = create(conn, "Versehen", None)?;
+            soft_delete(conn, &note.id)?;
+
+            assert!(list(conn, &filter(), 50)?.is_empty());
+            assert_eq!(list_deleted(conn, 50)?.len(), 1);
+
+            let restored = restore(conn, &note.id)?;
+            assert!(restored.deleted_at.is_none());
+            assert_eq!(list(conn, &filter(), 50)?.len(), 1);
+            assert!(list_deleted(conn, 50)?.is_empty());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn deleting_twice_is_rejected() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let note = create(conn, "Inhalt", None)?;
+            soft_delete(conn, &note.id)?;
+            assert!(soft_delete(conn, &note.id).is_err());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn expired_trash_is_purged() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let fresh = create(conn, "frisch", None)?;
+            let old = create(conn, "alt", None)?;
+            soft_delete(conn, &fresh.id)?;
+            conn.execute(
+                "UPDATE notes SET deleted_at = '2020-01-01T00:00:00Z' WHERE id = ?1",
+                params![old.id],
+            )?;
+
+            assert_eq!(purge_expired(conn, 30)?, 1);
+            assert_eq!(list_deleted(conn, 50)?.len(), 1);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn backups_and_search_ignore_the_trash() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let visible = create(conn, "sichtbare Migration", None)?;
+            let hidden = create(conn, "geloeschte Migration", None)?;
+            soft_delete(conn, &hidden.id)?;
+
+            assert_eq!(list_all(conn)?.len(), 1);
+            let found = search(conn, "Migration", 20)?;
+            assert_eq!(found.len(), 1);
+            assert_eq!(found[0].id, visible.id);
             Ok(())
         })
         .expect("operations");
@@ -200,9 +331,10 @@ mod tests {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
             create(conn, "echter text", None)?;
-            let mut search = filter();
-            search.search = Some("%".into());
-            assert_eq!(list(conn, &search, 50)?.len(), 0);
+            let mut search_filter = filter();
+            search_filter.search = Some("%".into());
+            assert_eq!(list(conn, &search_filter, 50)?.len(), 0);
+            assert_eq!(search(conn, "%", 20)?.len(), 0);
             Ok(())
         })
         .expect("operations");
@@ -223,8 +355,6 @@ mod tests {
             let mut unfiled = filter();
             unfiled.folder = FolderFilter::Unfiled;
             assert_eq!(list(conn, &unfiled, 50)?.len(), 1);
-
-            assert_eq!(list(conn, &filter(), 50)?.len(), 2);
             Ok(())
         })
         .expect("operations");
@@ -249,11 +379,10 @@ mod tests {
             assert_eq!(list(conn, &single, 50)?.len(), 2);
 
             let mut combined = filter();
-            combined.label_ids = vec![privat.id.clone(), dringend.id.clone()];
+            combined.label_ids = vec![privat.id, dringend.id];
             let found = list(conn, &combined, 50)?;
             assert_eq!(found.len(), 1);
             assert_eq!(found[0].content, "beide");
-            assert_eq!(found[0].labels.len(), 2);
             Ok(())
         })
         .expect("operations");

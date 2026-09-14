@@ -95,7 +95,7 @@ mod tests {
         db.with(|conn| {
             let task_id = seed_task(conn);
             claim(conn, &task_id, NotificationKind::Due, "2026-09-11T12:00")?;
-            tasks::delete(conn, &task_id)?;
+            tasks::purge(conn, &task_id)?;
 
             let remaining: i64 =
                 conn.query_row("SELECT COUNT(*) FROM notification_history", [], |row| row.get(0))?;
