@@ -1,183 +1,183 @@
+<div align="center">
+
+<img src="src-tauri/icons/128x128.png" width="96" alt="Notely" />
+
 # Notely
 
-Notizen, Aufgaben und Claude-Analyse als native Windows-11-Desktop-App.
-Freier Notiztext geht an Claude, zurück kommen strukturierte Aufgaben mit Datum und Uhrzeit -
-aufgelöst gegen die Tageszeiten, die in den Einstellungen definiert sind.
+**Notizen schreiben. Claude macht Aufgaben daraus.**
 
-## Stack und wichtige Entscheidungen
+Eine native Windows-11-Desktop-App: freier Notiztext geht an die Claude API,
+zurück kommen strukturierte Aufgaben mit Datum und Uhrzeit — aufgelöst gegen
+deine eigenen Tageszeiten.
 
-| Thema | Entscheidung | Begruendung |
-| --- | --- | --- |
-| Framework | Tauri 2 (WebView2) statt Electron | ~10x kleinerer RAM-Fussabdruck, Start in Millisekunden, natives Tray/Autostart, kein mitgeliefertes Chromium |
-| Frontend | React 19 + TypeScript strict + Vite | Bekannt, typsicher, schneller Build; kein UI-Framework, dadurch volle Kontrolle über das Design |
-| Datenbank | SQLite via `rusqlite` (bundled), Zugriff nur in Rust | Kein `tauri-plugin-sql`: der wuerde SQL aus dem WebView erlauben und damit eine Injection-Flaeche öffnen. Das Frontend kennt nur typisierte Commands |
-| Migrationen | eigener Runner über `PRAGMA user_version` | Kein zusätzliches Statusfile, transaktional, idempotent |
-| API-Key | Windows Credential Manager (`keyring`) | Nie im Sourcecode, nie in der Datenbank, nie im Log, nie im Frontend |
-| Claude-Aufruf | ausschliesslich aus Rust, Structured Output über Tool-Schema | Der Key verlässt den Rust-Prozess nicht; Freitext des Modells wird ignoriert |
-| Zeitaufloesung | Modell liefert Datum + Tageszeit-**Schlüssel**, die App setzt die Uhrzeit | Deterministisch und testbar. Aendert sich "Abend" auf 18:30, gilt das sofort - ohne erneute Analyse und ohne dass das Modell rechnen muss |
-| State im Frontend | `useSyncExternalStore` statt Redux/Zustand | Eine Abhaengigkeit weniger, ~60 Zeilen, vollständig typisiert |
+[![CI](https://github.com/DEIN-GITHUB-NAME/notely/actions/workflows/ci.yml/badge.svg)](https://github.com/DEIN-GITHUB-NAME/notely/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DEIN-GITHUB-NAME/notely?include_prereleases&sort=semver)](https://github.com/DEIN-GITHUB-NAME/notely/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078d4)
 
-## Projektstruktur
+</div>
+
+---
+
+> [!NOTE]
+> Ersetze `DEIN-GITHUB-NAME` in den Badge-URLs durch deinen GitHub-Benutzernamen und lege
+> einen Screenshot unter `docs/screenshot.png` ab — dann ist die Startseite fertig.
+
+<!-- ![Notely](docs/screenshot.png) -->
+
+## Was die App macht
+
+Du schreibst:
 
 ```
-src/                     React-Frontend
-  components/            wiederverwendbare Bausteine (ui, TaskRow, Sidebar, Palette)
-  features/              fachliche Ansichten (today, inbox, tasks, notes, settings, onboarding)
-  hooks/                 useTheme, useHotkeys
-  lib/                   ipc.ts (typisierte Commands + Fehlerabbildung), store.ts
-  utils/                 date.ts (+ Tests)
-src-tauri/src/
-  ai/                    Claude-Client, Prompt, JSON-Schema, Validierung der AI-Ausgabe
-  commands/              Tauri-Commands (notes, tasks, settings, ai, system)
-  db/                    Verbindung, Migrationen, Repositories, Modelle
-  domain/                Settings, Zeitlogik, Scheduling, Eingabevalidierung
-  notifications/         Scheduler, Dedupe, Texte
-  backup/                Export, Import, Markdown, automatische Sicherung
-  quick.rs               Schnellerfassungsfenster und globales Kuerzel
-  security/              Zugriff auf den Windows Credential Manager
-  startup.rs tray.rs window.rs logging.rs error.rs state.rs
+Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren.
 ```
 
-## Voraussetzungen
+Notely macht daraus zwei Aufgaben:
 
-- Windows 11
-- Node.js 20+
-- Rust (stable) via [rustup](https://rustup.rs) inkl. MSVC-Toolchain
-- Visual Studio Build Tools mit "Desktop development with C++"
-- WebView2 Runtime (auf Windows 11 vorinstalliert)
+| Aufgabe | Fällig |
+| --- | --- |
+| Datenbankmigration vorbereiten | morgen, 12:00 |
+| Nico informieren | morgen, 18:00 |
 
-## Entwickeln
+„Mittag" und „Abend" sind dabei **nicht** einprogrammiert. Du definierst sie in
+den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten Analyse.
+
+## Funktionen
+
+- **Notizen** mit Ordnern, frei benennbaren Labels und Volltextsuche. Die
+  ursprüngliche Notiz bleibt immer erhalten, auch wenn die Analyse fehlschlägt.
+- **Aufgaben** mit Heute/Morgen/Diese Woche/Überfällig, Mehrfachauswahl und
+  Massenaktionen (verschieben, erledigen, löschen).
+- **Claude-Analyse** über Structured Output. Erkennt keine konkrete Handlung,
+  entsteht auch keine Aufgabe.
+- **Windows-Benachrichtigungen** mit konfigurierbaren Vorlaufzeiten, Snooze und
+  garantiert ohne Dubletten.
+- **Schnellerfassung** per systemweitem Kürzel (`Ctrl+Alt+N`): tippen, Enter, weg.
+- **Tagesabschluss** am Abend: was offen blieb, abhaken oder auf morgen schieben.
+- **Papierkorb** mit 30 Tagen Schonfrist und automatische tägliche Sicherung.
+- **Tray, Autostart** und Start im Hintergrund.
+- Dark und Light Mode, durchgehende Tastaturbedienung.
+
+## Installation
+
+Fertigen Installer aus den [Releases](../../releases) laden und ausführen:
+`Notely_x.y.z_x64-setup.exe`. Installation ins Benutzerprofil, keine Adminrechte.
+
+> Windows zeigt beim ersten Start „unbekannter Herausgeber", weil die Datei nicht
+> signiert ist → *Weitere Informationen* → *Trotzdem ausführen*.
+
+Für die Aufgabenerkennung wird ein eigener [Claude API-Key](https://console.anthropic.com)
+benötigt. Ohne Key funktioniert alles ausser der Analyse.
+
+## Schnellstart für Entwickler
+
+**Voraussetzungen:** Windows 11, Node.js 20+, Rust (stable, MSVC), Visual Studio
+Build Tools mit „Desktop development with C++".
 
 ```powershell
+git clone https://github.com/DEIN-GITHUB-NAME/notely.git
+cd notely
 npm install
 npm run tauri:dev
 ```
 
+Bauen und testen in einem Schritt — prüft die Werkzeuge, lässt alle Tests laufen
+und erzeugt den Installer:
+
+```powershell
+.\build.ps1                 # prüfen, testen, bauen
+.\build.ps1 -SkipChecks     # Werkzeugprüfung überspringen
+.\build.ps1 -InstallMissing # fehlendes Rust / MSVC automatisch installieren
+```
+
+Ergebnis liegt in `src-tauri/target/release/bundle/nsis/`.
+
 ## Tests
 
 ```powershell
-npm test                       # Frontend: Datumslogik, Gruppierung, Sortierung
-cd src-tauri; cargo test       # Rust: Tageszeiten, AI-Validierung, Scheduling, Dedupe, Migrationen, Repositories
+npm test                                   # Frontend: Datumslogik, Gruppierung
+cargo test --manifest-path src-tauri/Cargo.toml   # Rust: ~95 Tests
 ```
 
-Abgedeckt sind unter anderem die geforderten Faelle:
-`10.09.2026 09:36` + "Morgen Mittag" -> `2026-09-11 12:00`, und "heute Abend" mit
-Evening = `18:30` -> `2026-09-10 18:30`.
+Abgedeckt sind unter anderem die Fälle, an denen solche Apps üblicherweise
+scheitern: Zeitzonen und Monatsgrenzen, doppelte Benachrichtigungen nach
+Neustart, kaputte AI-Antworten, Migrationen auf bestehenden Datenbanken und
+der Papierkorb.
 
-## Build (Installer)
+## Architektur
 
-Der schnellste Weg - prueft Voraussetzungen, läuft durch Tests und baut:
-
-```powershell
-cd C:\Users\west\projects\privat\notely
-.\build.ps1                 # nur prüfen und bauen
-.\build.ps1 -SkipChecks     # Pruefung ueberspringen
-.\build.ps1 -InstallMissing # fehlendes Rust / MSVC vorher automatisch installieren
+```
+src/                    React-Frontend (TypeScript strict)
+  components/           wiederverwendbare Bausteine
+  features/             fachliche Ansichten (today, tasks, notes, review, …)
+  lib/                  typisierte IPC-Schicht, Store
+  utils/                Datumslogik (+ Tests)
+src-tauri/src/
+  ai/                   Claude-Client, Prompt, JSON-Schema, Validierung
+  backup/               Export, Import, Markdown, automatische Sicherung
+  commands/             Tauri-Commands – die einzige Brücke zum Frontend
+  db/                   Verbindung, Migrationen, Repositories, Modelle
+  domain/               Settings, Zeitlogik, Scheduling, Review, Validierung
+  notifications/        Scheduler, Dedupe, Texte
+  security/             Windows Credential Manager
 ```
 
-Manuell:
+### Entscheidungen, die das Projekt prägen
 
-```powershell
-npm install
-npm run tauri:build
-```
-
-Ergebnisse:
-
-- `src-tauri\target\release\bundle\nsis\Notely_0.5.0_x64-setup.exe` - Installer, Installation im
-  Benutzerprofil, keine Adminrechte nötig. **Empfohlen**, weil erst die Startmenue-Verknuepfung die
-  AUMID liefert, über die Windows-Toasts zuverlaessig laufen.
-- `src-tauri\target\release\notely.exe` - portable EXE, läuft direkt, Benachrichtigungen koennen
-  ohne Installation unzuverlaessig sein.
-
-## Erste Schritte in der App
-
-1. Beim ersten Start fragt Notely, ob die App mit Windows starten soll.
-2. Unter **Settings -> Claude** den API-Key eintragen (`sk-ant-...`) und "Verbindung testen".
-3. Unter **Settings -> Tageszeiten** die Uhrzeiten anpassen.
-4. Unter **Notizen** frei schreiben, dann "Mit Claude analysieren".
-
-## Tastatur
-
-| Kuerzel | Aktion |
-| --- | --- |
-| `Strg+K` | Befehlspalette |
-| `Strg+N` | Neue Notiz |
-| `Strg+T` | Neuer Task |
-| `Strg+1..4` | Heute / Inbox / Tasks / Notizen |
-| `Strg+,` | Einstellungen |
-| `Strg+S` | Notiz speichern (im Editor) |
-| `Esc` | Dialog schliessen |
-| `Ctrl+Alt+N` | Schnellerfassung (systemweit, konfigurierbar) |
-
-## Sicherung und Schnellerfassung
-
-**Sicherung** (Settings -> Sicherung): schreibt Notizen, Tasks, Ordner und Labels als JSON in
-`Dokumente\\Notely Backups` (Ordner frei wählbar). Beim Start passiert das automatisch, höchstens
-einmal pro Tag; ältere Dateien werden nach der eingestellten Anzahl entfernt. „Wiederherstellen"
-ergänzt fehlende Einträge anhand ihrer IDs - bestehende Daten werden nie überschrieben oder
-gelöscht, ein doppelter Import ändert nichts. Zusätzlich gibt es einen Markdown-Export zum Lesen.
-
-**Schnellerfassung**: `Ctrl+Alt+N` (konfigurierbar) öffnet ein rahmenloses Fenster über allen
-anderen. Text eintippen, Enter - die Notiz wird gespeichert und, wenn ein API-Key hinterlegt ist,
-direkt analysiert. Braucht ein Vorschlag Bestätigung, öffnet sich das Hauptfenster mit dem Dialog.
-Die Notiz ist immer gespeichert, bevor die Analyse startet.
-
-## Tagesabschluss und Import
-
-**Tagesabschluss**: ab der eingestellten Uhrzeit (Standard 18:00) meldet Notely, was heute offen
-geblieben ist. Der Dialog kennt zwei Aktionen - abhaken oder auf morgen schieben - und lässt sich
-jederzeit über Strg+K öffnen. Einmal pro Tag, danach erst wieder am nächsten.
-
-**Markdown-Import** (Settings -> Sicherung): liest `.md`, `.markdown` und `.txt` aus einem Ordner
-als Notizen ein, nicht rekursiv. Inhalte, die bereits als Notiz existieren, werden übersprungen -
-ein zweiter Durchlauf ändert nichts. Optional landen alle importierten Notizen in einem Ordner.
+| Thema | Entscheidung | Warum |
+| --- | --- | --- |
+| Framework | Tauri 2 statt Electron | Deutlich kleinerer Speicherbedarf, Start in Millisekunden, native Windows-Integration, kein mitgeliefertes Chromium |
+| Datenbank | SQLite via `rusqlite`, Zugriff nur in Rust | Kein `tauri-plugin-sql` — der würde SQL aus dem WebView erlauben. Das Frontend kennt ausschliesslich typisierte Commands |
+| Migrationen | eigener Runner über `PRAGMA user_version` | Transaktional, idempotent, kein zusätzliches Statusfile |
+| API-Key | Windows Credential Manager | Nie im Code, nie in der Datenbank, nie im Log, nie im Frontend |
+| Zeitauflösung | Modell liefert Datum + Tageszeit-**Schlüssel**, die App setzt die Uhrzeit | Deterministisch und testbar; Änderungen an den Tageszeiten wirken sofort |
+| Löschen | Soft Delete mit Papierkorb | Ein Restore, der überschreiben kann, ist im Panikmoment gefährlicher als das Problem |
+| Frontend-State | `useSyncExternalStore` statt Redux | Eine Abhängigkeit weniger, rund 60 Zeilen, vollständig typisiert |
 
 ## Sicherheit
 
-- API-Key ausschliesslich im Windows Credential Manager, im UI nur maskiert (`sk-ant...9f2c`).
-- Logs werden vor dem Schreiben gefiltert: alles was mit `sk-` beginnt wird ersetzt.
-- Jede Claude-Antwort gilt als nicht vertrauenswürdig: Struktur, Datum, Uhrzeit, Tageszeit-Schlüssel,
-  Confidence und Textlaenge werden geprüft, Steuerzeichen entfernt, Duplikate verworfen.
-  Ungültige Vorschläge landen im Log und im Dialog unter "Verworfen", nie in der Datenbank.
-- Claude schreibt nie direkt in die Datenbank - der Weg ist immer
-  `Notiz -> API -> Validierung -> (optional Bestätigung) -> Task`.
-- Alle SQL-Zugriffe nutzen Parameter-Binding, auch die Volltextsuche (`LIKE` mit escapten Wildcards).
-- CSP erlaubt nur eigene Ressourcen und IPC, keine externen Skripte, kein Asset-Protokoll.
-- Capabilities enthalten nur die tatsaechlich benoetigten Fensterrechte; Notifications,
-  Autostart und Datenbank laufen ausschliesslich über eigene Rust-Commands.
-- Keine Shell-Ausfuehrung, kein freier Dateisystemzugriff.
+- Der API-Key liegt im Windows Credential Manager und wird im UI nur maskiert angezeigt.
+- Logs werden vor dem Schreiben gefiltert — alles, was mit `sk-` beginnt, wird ersetzt.
+- **Jede Claude-Antwort gilt als nicht vertrauenswürdig.** Struktur, Datum, Uhrzeit,
+  Tageszeit-Schlüssel, Confidence und Textlänge werden geprüft, Steuerzeichen entfernt,
+  Duplikate verworfen. Claude schreibt nie direkt in die Datenbank.
+- Alle SQL-Zugriffe nutzen Parameter-Binding, auch die Suche.
+- CSP erlaubt nur eigene Ressourcen und IPC. Keine Shell-Ausführung, kein freier
+  Dateisystemzugriff, nur die tatsächlich benötigten Tauri-Capabilities.
 
-## Fehlerverhalten
+Details und Meldeweg: [SECURITY.md](SECURITY.md).
 
-| Fall | Verhalten |
+## Datenschutz
+
+Notizen, Aufgaben und Einstellungen liegen ausschliesslich lokal in
+`%APPDATA%\ch.westcon.notely`. Bei einer Analyse wird der Text der jeweiligen
+Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
+
+## Tastatur
+
+| Kürzel | Aktion |
 | --- | --- |
-| Kein Internet / API nicht erreichbar | Notiz bleibt gespeichert, Hinweis im UI, Analyse jederzeit wiederholbar |
-| Ungültiger Key / Rate Limit | Eigene Meldung inkl. Wartezeit, keine Datenaenderung |
-| Ungültiges JSON oder abgeschnittene Antwort | Analyse gilt als fehlgeschlagen, Notiz unverändert |
-| Keine Aufgabe erkannt | Hinweis "keine konkrete Aufgabe erkannt", kein Task |
-| Datum in der Vergangenheit | Vorschlag wird markiert und standardmaessig **nicht** angehakt |
-| Datenbankfehler | Fehlermeldung im UI, Log-Eintrag, App läuft weiter |
-| Benachrichtigung abgelehnt | Hinweis im UI mit Verweis auf die Windows-Einstellungen |
+| `Ctrl+Alt+N` | Schnellerfassung (systemweit) |
+| `Strg+K` | Befehlspalette und Suche |
+| `Strg+N` / `Strg+T` | Neue Notiz / neuer Task |
+| `Strg+1…4` | Heute / Inbox / Tasks / Notizen |
+| `Strg+S` | Notiz speichern |
+| `Strg+,` | Einstellungen |
+| `Esc` | Dialog schliessen |
 
-## Benachrichtigungen
+## Roadmap
 
-Der Scheduler läuft alle 30 Sekunden in Rust. Für jeden offenen Task mit Termin werden die
-faelligen Slots berechnet (Vorlaufzeiten, Fälligkeit, Überfällig-Intervall) und über
-`INSERT OR IGNORE` in `notification_history` reserviert - der UNIQUE-Index
-`(task_id, kind, fire_at)` macht Doppel-Benachrichtigungen technisch unmoeglich, auch nach
-einem Neustart. Verpasste Erinnerungen werden nur innerhalb von 10 Minuten nachgeholt, damit nach
-laengerer Abwesenheit keine Toast-Welle entsteht.
+- [ ] Code-Signing, damit die SmartScreen-Warnung verschwindet
+- [ ] Automatische Updates über den Tauri-Updater
+- [ ] Wiederkehrende Aufgaben
+- [ ] Getrennte Profile für Privat und Arbeit
 
-**Aktionsbuttons im Toast** (Erledigt / Oeffnen / Später) sind bewusst nicht umgesetzt: unter
-Windows brauchen sie eine registrierte AUMID plus COM-Activator, funktionieren nur im
-installierten Zustand und fallen bei jedem Update auseinander. Stattdessen: Snooze direkt in der
-Liste (Standardwert konfigurierbar), Tray-Menue und `Strg+K`.
+## Mitmachen
 
-## Bekannte Stellschrauben
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md). Änderungen werden in
+[CHANGELOG.md](CHANGELOG.md) festgehalten.
 
-- `app.trayIcon.showMenuOnLeftClick` in `src-tauri/tauri.conf.json` heisst in Tauri-Versionen
-  vor 2.2 `menuOnLeftClick`. Falls der Build die Konfiguration ablaehnt: Schlüssel umbenennen
-  oder entfernen.
-- Modell-Vorgabe ist `claude-sonnet-4-5`; die tatsaechlich verfügbaren IDs laedt die
-  Settings-Seite über "Modelle laden" direkt vom Account, damit nichts veraltet.
+## Lizenz
+
+[MIT](LICENSE)

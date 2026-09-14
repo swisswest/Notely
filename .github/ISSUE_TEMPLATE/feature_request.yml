@@ -1,0 +1,23 @@
+name: Funktion vorschlagen
+description: Eine Idee fuer Notely
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem loest das?
+      description: |
+        Die Situation ist wichtiger als die Loesung - beschreib bitte, was dich
+        konkret gestoert hat.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Wie koennte es aussehen?
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Womit behilfst du dir heute?

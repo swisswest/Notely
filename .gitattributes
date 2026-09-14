@@ -1,0 +1,22 @@
+# Zeilenenden im Repository normalisieren, im Arbeitsverzeichnis Windows-typisch.
+* text=auto
+
+*.rs      text
+*.ts      text
+*.tsx     text
+*.css     text
+*.json    text
+*.md      text
+*.toml    text
+*.yml     text
+*.ps1     text eol=crlf
+
+*.png     binary
+*.ico     binary
+*.exe     binary
+*.dll     binary
+*.db      binary
+
+# Lockfiles nicht als Diff anzeigen - sie sind generiert.
+package-lock.json  linguist-generated=true -diff
+src-tauri/Cargo.lock linguist-generated=true -diff

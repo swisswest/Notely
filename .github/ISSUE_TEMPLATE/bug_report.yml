@@ -1,0 +1,52 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie erwartet
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fuers Melden. Bitte keine API-Keys oder Notizinhalte einfuegen,
+        die du nicht oeffentlich sehen willst.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du erwartet, was ist stattdessen passiert?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Nachstellen
+      placeholder: |
+        1. Notiz mit "..." anlegen
+        2. Auf "Mit Claude analysieren" klicken
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Notely-Version
+      description: Steht oben links in der Seitenleiste
+      placeholder: "0.5.0"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows-Version
+      placeholder: "Windows 11 24H2"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logauszug
+      description: |
+        Pfad steht in den Einstellungen unter "Info". Die App filtert API-Keys
+        bereits heraus - trotzdem vor dem Einfuegen kurz druebersehen.
+      render: text

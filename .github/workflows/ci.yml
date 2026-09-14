@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests und Build
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rust einrichten
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust-Build zwischenspeichern
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      - name: TypeScript pruefen
+        run: npm run typecheck
+
+      - name: Frontend-Tests
+        run: npm test
+
+      - name: Rust-Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Release-Build
+        run: npm run tauri:build
+
+      - name: Installer als Artefakt sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: notely-installer
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  lint:
+    name: Formatierung und Clippy
+    runs-on: windows-latest
+    # Informativ: meldet Verbesserungen, blockiert aber keinen Merge.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: rustfmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
