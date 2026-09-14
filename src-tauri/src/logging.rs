@@ -37,7 +37,11 @@ pub fn init(log_dir: &Path) {
     let _ = fs::create_dir_all(log_dir);
     let path = log_dir.join("notely.log");
     rotate_if_needed(&path);
-    let file = OpenOptions::new().create(true).append(true).open(&path).ok();
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok();
     let _ = LOGGER.set(Logger {
         file: Mutex::new(file),
         path,

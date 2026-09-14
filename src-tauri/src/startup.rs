@@ -36,7 +36,10 @@ pub fn sync(app: &AppHandle, desired: bool) {
         Ok(current) if current == desired => {}
         Ok(_) => {
             if let Err(err) = set_enabled(app, desired) {
-                logging::warn("startup", format!("Autostart-Abgleich fehlgeschlagen: {err}"));
+                logging::warn(
+                    "startup",
+                    format!("Autostart-Abgleich fehlgeschlagen: {err}"),
+                );
             }
         }
         Err(err) => logging::warn("startup", format!("Autostart-Status unbekannt: {err}")),

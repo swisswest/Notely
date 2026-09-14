@@ -114,7 +114,12 @@ pub fn list(conn: &Connection, filter: &NoteFilter, limit: u32) -> AppResult<Vec
     let mut clauses: Vec<String> = vec!["deleted_at IS NULL".to_string()];
     let mut values: Vec<Box<dyn ToSql>> = Vec::new();
 
-    if let Some(term) = filter.search.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+    if let Some(term) = filter
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
         clauses.push("content LIKE '%' || ? || '%' ESCAPE '\\'".to_string());
         values.push(Box::new(escape_like(term)));
     }
@@ -195,9 +200,8 @@ pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>>
 
 /// Alle aktiven Notizen ohne Filter und Limit - Grundlage für Sicherungen.
 pub fn list_all(conn: &Connection) -> AppResult<Vec<Note>> {
-    let sql = format!(
-        "SELECT {COLUMNS} FROM notes WHERE deleted_at IS NULL ORDER BY created_at ASC"
-    );
+    let sql =
+        format!("SELECT {COLUMNS} FROM notes WHERE deleted_at IS NULL ORDER BY created_at ASC");
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();
     for row in stmt.query_map([], map)? {

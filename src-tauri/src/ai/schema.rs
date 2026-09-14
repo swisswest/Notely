@@ -141,9 +141,10 @@ mod tests {
 
     #[test]
     fn tolerates_unknown_fields() {
-        let parsed: RawTaskList =
-            serde_json::from_str(r#"{"tasks":[{"title":"X","time":{"kind":"none"},"foo":1}],"bar":2}"#)
-                .expect("parse");
+        let parsed: RawTaskList = serde_json::from_str(
+            r#"{"tasks":[{"title":"X","time":{"kind":"none"},"foo":1}],"bar":2}"#,
+        )
+        .expect("parse");
         assert_eq!(parsed.tasks.len(), 1);
     }
 }

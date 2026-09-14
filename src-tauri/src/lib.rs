@@ -51,9 +51,10 @@ pub fn run() {
                 let tasks = crate::db::tasks::purge_expired(conn, commands::trash::RETENTION_DAYS)?;
                 Ok(notes + tasks)
             }) {
-                Ok(count) if count > 0 => {
-                    logging::info("app", format!("{count} Eintraege aus dem Papierkorb entfernt"))
-                }
+                Ok(count) if count > 0 => logging::info(
+                    "app",
+                    format!("{count} Eintraege aus dem Papierkorb entfernt"),
+                ),
                 Err(err) => logging::warn("app", format!("Papierkorb nicht aufgeraeumt: {err}")),
                 _ => {}
             }
@@ -77,7 +78,10 @@ pub fn run() {
                 let backup_handle = handle.clone();
                 tauri::async_runtime::spawn(async move {
                     if let Err(err) = run_startup_backup(&backup_handle) {
-                        logging::warn("app", format!("Automatische Sicherung fehlgeschlagen: {err}"));
+                        logging::warn(
+                            "app",
+                            format!("Automatische Sicherung fehlgeschlagen: {err}"),
+                        );
                     }
                 });
             }
@@ -201,8 +205,7 @@ fn run_startup_backup(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
 
     state.db.with(|conn| {
         let mut current = settings_repo::load(conn)?;
-        current.backup.last_backup_at =
-            Some(crate::domain::time::to_rfc3339(chrono::Local::now()));
+        current.backup.last_backup_at = Some(crate::domain::time::to_rfc3339(chrono::Local::now()));
         settings_repo::save(conn, &current)
     })?;
 

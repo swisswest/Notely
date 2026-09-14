@@ -63,7 +63,9 @@ pub fn update_note(
 ) -> AppResult<Note> {
     let id = validation::identifier(&id, "Notiz-ID")?;
     let content = validation::note_content(&content)?;
-    let note = state.db.with(|conn| repo::update_content(conn, &id, &content))?;
+    let note = state
+        .db
+        .with(|conn| repo::update_content(conn, &id, &content))?;
     window::notify_data_changed(&app);
     Ok(note)
 }
@@ -147,5 +149,7 @@ pub fn set_note_labels(
 #[tauri::command]
 pub fn tasks_for_note(state: State<'_, AppState>, note_id: String) -> AppResult<Vec<Task>> {
     let note_id = validation::identifier(&note_id, "Notiz-ID")?;
-    state.db.with(|conn| task_repo::list_by_note(conn, &note_id))
+    state
+        .db
+        .with(|conn| task_repo::list_by_note(conn, &note_id))
 }

@@ -165,7 +165,8 @@ mod tests {
 
         // Nur Migration 1 anwenden und eine Notiz anlegen.
         conn.execute_batch(MIGRATIONS[0]).expect("schema v1");
-        conn.execute_batch("PRAGMA user_version = 1").expect("version");
+        conn.execute_batch("PRAGMA user_version = 1")
+            .expect("version");
         conn.execute(
             "INSERT INTO notes (id, content, created_at, updated_at)
              VALUES ('n1', 'Bestandsnotiz', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
@@ -176,9 +177,11 @@ mod tests {
         run(&conn).expect("upgrade");
 
         let (content, folder): (String, Option<String>) = conn
-            .query_row("SELECT content, folder_id FROM notes WHERE id = 'n1'", [], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
+            .query_row(
+                "SELECT content, folder_id FROM notes WHERE id = 'n1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
             .expect("note");
         assert_eq!(content, "Bestandsnotiz");
         assert!(folder.is_none());

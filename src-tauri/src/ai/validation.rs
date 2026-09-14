@@ -31,9 +31,9 @@ pub fn validate_and_resolve(
 
     for (index, task) in raw.tasks.into_iter().enumerate() {
         if index >= MAX_TASKS_PER_NOTE {
-            outcome
-                .rejected
-                .push(format!("Mehr als {MAX_TASKS_PER_NOTE} Vorschläge verworfen"));
+            outcome.rejected.push(format!(
+                "Mehr als {MAX_TASKS_PER_NOTE} Vorschläge verworfen"
+            ));
             break;
         }
 
@@ -84,7 +84,9 @@ fn convert(
             if parsed < today - Duration::days(MAX_PAST_DAYS)
                 || parsed > today + Duration::days(MAX_FUTURE_DAYS)
             {
-                return Err(format!("Datum ausserhalb des gültigen Bereichs bei '{title}'"));
+                return Err(format!(
+                    "Datum ausserhalb des gültigen Bereichs bei '{title}'"
+                ));
             }
             Some(parsed)
         }
@@ -166,7 +168,12 @@ fn sanitize(input: &str, max_chars: usize) -> String {
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect();
     let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
-    collapsed.chars().take(max_chars).collect::<String>().trim().to_string()
+    collapsed
+        .chars()
+        .take(max_chars)
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 #[cfg(test)]
@@ -223,7 +230,10 @@ mod tests {
 
         let outcome = validate_and_resolve(raw, &settings, now_at(2026, 9, 10, 9, 36));
 
-        assert_eq!(outcome.suggestions[0].due_date.as_deref(), Some("2026-09-10"));
+        assert_eq!(
+            outcome.suggestions[0].due_date.as_deref(),
+            Some("2026-09-10")
+        );
         assert_eq!(outcome.suggestions[0].due_time.as_deref(), Some("18:30"));
     }
 
@@ -233,7 +243,8 @@ mod tests {
             r#"{"tasks":[{"title":"Call","dueDate":"2026-09-10",
                  "time":{"kind":"exact","exact":"11:36"},"confidence":0.8}]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert_eq!(outcome.suggestions[0].due_time.as_deref(), Some("11:36"));
         assert!(outcome.suggestions[0].daypart_key.is_none());
     }
@@ -244,7 +255,8 @@ mod tests {
             r#"{"tasks":[{"title":"Rückblick","dueDate":"2026-09-09",
                  "time":{"kind":"exact","exact":"08:00"},"confidence":0.9}]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert!(outcome.suggestions[0].in_past);
     }
 
@@ -254,7 +266,8 @@ mod tests {
             r#"{"tasks":[{"title":"X","dueDate":"2026-09-11",
                  "time":{"kind":"daypart","daypart":"teatime"},"confidence":0.9}]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert!(outcome.suggestions.is_empty());
         assert_eq!(outcome.rejected.len(), 1);
     }
@@ -267,7 +280,8 @@ mod tests {
                 {"title":"B","dueDate":"2026-09-11","time":{"kind":"exact","exact":"25:00"},"confidence":0.9}
             ]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert!(outcome.suggestions.is_empty());
         assert_eq!(outcome.rejected.len(), 2);
     }
@@ -292,7 +306,8 @@ mod tests {
                 {"title":"   ","dueDate":null,"time":{"kind":"none"},"confidence":0.9}
             ]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert_eq!(outcome.suggestions.len(), 1);
         assert_eq!(outcome.rejected.len(), 2);
     }
@@ -310,7 +325,8 @@ mod tests {
         }))
         .expect("json");
 
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         let suggestion = &outcome.suggestions[0];
         assert!(!suggestion.title.contains('\n'));
         assert_eq!(suggestion.title.chars().count(), MAX_TITLE_CHARS);
@@ -322,14 +338,16 @@ mod tests {
         let raw = parse(
             r#"{"tasks":[{"title":"X","dueDate":null,"time":{"kind":"exact","exact":"09:00"},"confidence":0.9}]}"#,
         );
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert!(outcome.suggestions.is_empty());
     }
 
     #[test]
     fn missing_confidence_defaults_to_uncertain() {
         let raw = parse(r#"{"tasks":[{"title":"X","dueDate":null,"time":{"kind":"none"}}]}"#);
-        let outcome = validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
+        let outcome =
+            validate_and_resolve(raw, &AppSettings::default(), now_at(2026, 9, 10, 9, 36));
         assert_eq!(outcome.suggestions[0].confidence, 0.5);
     }
 }

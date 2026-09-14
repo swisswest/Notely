@@ -67,9 +67,9 @@ fn run_tick(app: &AppHandle) -> AppResult<()> {
     for task in candidates {
         for planned in scheduling::plan(&task, &settings, now) {
             let slot = planned.slot();
-            let claimed = state.db.with(|conn| {
-                notification_history::claim(conn, &task.id, planned.kind, &slot)
-            })?;
+            let claimed = state
+                .db
+                .with(|conn| notification_history::claim(conn, &task.id, planned.kind, &slot))?;
             if !claimed {
                 continue;
             }
@@ -155,7 +155,11 @@ fn deliver(app: &AppHandle, task: &Task, planned: &PlannedNotification, settings
     {
         Ok(()) => logging::info(
             TARGET,
-            format!("Benachrichtigung gesendet: {} ({})", task.id, planned.kind.as_str()),
+            format!(
+                "Benachrichtigung gesendet: {} ({})",
+                task.id,
+                planned.kind.as_str()
+            ),
         ),
         Err(err) => {
             logging::error(TARGET, format!("Benachrichtigung fehlgeschlagen: {err}"));

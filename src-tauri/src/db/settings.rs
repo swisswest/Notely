@@ -52,7 +52,10 @@ mod tests {
     fn round_trip_and_defaults() {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
-            assert_eq!(load(conn)?.claude.model, AppSettings::default().claude.model);
+            assert_eq!(
+                load(conn)?.claude.model,
+                AppSettings::default().claude.model
+            );
 
             let mut settings = AppSettings::default();
             settings.timezone = "Europe/Zurich".into();

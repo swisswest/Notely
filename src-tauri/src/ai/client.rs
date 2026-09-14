@@ -30,7 +30,9 @@ impl ClaudeClient {
             .timeout(REQUEST_TIMEOUT)
             .user_agent(concat!("Notely/", env!("CARGO_PKG_VERSION")))
             .build()
-            .map_err(|err| AppError::Internal(format!("HTTP-Client nicht initialisierbar: {err}")))?;
+            .map_err(|err| {
+                AppError::Internal(format!("HTTP-Client nicht initialisierbar: {err}"))
+            })?;
         Ok(Self { http })
     }
 
@@ -223,7 +225,8 @@ mod tests {
 
     #[test]
     fn rejects_response_without_tool_use() {
-        let payload = json!({ "content": [{ "type": "text", "text": "Hallo" }], "stop_reason": "end_turn" });
+        let payload =
+            json!({ "content": [{ "type": "text", "text": "Hallo" }], "stop_reason": "end_turn" });
         assert!(extract_tool_input(&payload).is_err());
     }
 

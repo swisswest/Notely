@@ -88,7 +88,10 @@ pub fn set_for_note(conn: &Connection, note_id: &str, label_ids: &[String]) -> A
         )));
     }
 
-    conn.execute("DELETE FROM note_labels WHERE note_id = ?1", params![note_id])?;
+    conn.execute(
+        "DELETE FROM note_labels WHERE note_id = ?1",
+        params![note_id],
+    )?;
     for label_id in label_ids {
         // Unbekannte Label-IDs werden hier abgewiesen, nicht still ignoriert.
         get(conn, label_id)?;
@@ -108,7 +111,9 @@ pub fn by_note(conn: &Connection) -> AppResult<HashMap<String, Vec<String>>> {
          ORDER BY l.name COLLATE NOCASE ASC",
     )?;
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
-    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
     for row in rows {
         let (note_id, label_id) = row?;
         map.entry(note_id).or_default().push(label_id);

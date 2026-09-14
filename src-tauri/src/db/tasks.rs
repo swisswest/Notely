@@ -63,7 +63,11 @@ pub fn get(conn: &Connection, id: &str) -> AppResult<Task> {
 
 /// Offene Tasks vollständig, erledigte nur begrenzt - die Oberfläche
 /// gruppiert selbst nach Heute/Morgen/Diese Woche/Überfällig.
-pub fn list(conn: &Connection, include_completed: bool, completed_limit: u32) -> AppResult<Vec<Task>> {
+pub fn list(
+    conn: &Connection,
+    include_completed: bool,
+    completed_limit: u32,
+) -> AppResult<Vec<Task>> {
     let mut result = Vec::new();
 
     let open_sql = format!(
@@ -119,9 +123,8 @@ pub fn list_schedulable(conn: &Connection) -> AppResult<Vec<Task>> {
 
 /// Alle aktiven Tasks ohne Limit - Grundlage für Sicherungen.
 pub fn list_all(conn: &Connection) -> AppResult<Vec<Task>> {
-    let sql = format!(
-        "SELECT {COLUMNS} FROM tasks WHERE deleted_at IS NULL ORDER BY created_at ASC"
-    );
+    let sql =
+        format!("SELECT {COLUMNS} FROM tasks WHERE deleted_at IS NULL ORDER BY created_at ASC");
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();
     for row in stmt.query_map([], map)? {
@@ -386,7 +389,10 @@ mod tests {
             create(conn, &draft("spaet", Some("2026-09-11"), Some("18:00")))?;
             create(conn, &draft("frueh", Some("2026-09-11"), Some("07:00")))?;
 
-            let titles: Vec<String> = list(conn, false, 10)?.into_iter().map(|t| t.title).collect();
+            let titles: Vec<String> = list(conn, false, 10)?
+                .into_iter()
+                .map(|t| t.title)
+                .collect();
             assert_eq!(titles, vec!["frueh", "spaet", "ohne Termin"]);
             Ok(())
         })
@@ -423,7 +429,9 @@ mod tests {
 
             assert_eq!(bulk_reschedule(conn, &ids, Some("2026-09-12"), None)?, 2);
             let moved = by_ids(conn, &ids)?;
-            assert!(moved.iter().all(|task| task.due_date.as_deref() == Some("2026-09-12")));
+            assert!(moved
+                .iter()
+                .all(|task| task.due_date.as_deref() == Some("2026-09-12")));
             assert!(moved.iter().all(|task| task.due_time.is_none()));
 
             assert_eq!(bulk_set_completed(conn, &ids, true)?, 2);
@@ -459,7 +467,10 @@ mod tests {
         db.with(|conn| {
             create(conn, &draft("spaet", Some("2026-09-11"), Some("18:00")))?;
             create(conn, &draft("frueh", Some("2026-09-11"), Some("08:00")))?;
-            create(conn, &draft("anderer Tag", Some("2026-09-12"), Some("08:00")))?;
+            create(
+                conn,
+                &draft("anderer Tag", Some("2026-09-12"), Some("08:00")),
+            )?;
 
             let titles: Vec<String> = list_due_on(conn, "2026-09-11")?
                 .into_iter()

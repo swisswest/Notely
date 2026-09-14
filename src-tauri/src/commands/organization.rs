@@ -13,7 +13,11 @@ pub fn list_folders(state: State<'_, AppState>) -> AppResult<Vec<Folder>> {
 }
 
 #[tauri::command]
-pub fn create_folder(app: AppHandle, state: State<'_, AppState>, name: String) -> AppResult<Folder> {
+pub fn create_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<Folder> {
     let name = validation::display_name(&name, "Ordnername")?;
     let folder = state.db.with(|conn| folder_repo::create(conn, &name))?;
     window::notify_data_changed(&app);
@@ -29,7 +33,9 @@ pub fn rename_folder(
 ) -> AppResult<Folder> {
     let id = validation::identifier(&id, "Ordner-ID")?;
     let name = validation::display_name(&name, "Ordnername")?;
-    let folder = state.db.with(|conn| folder_repo::rename(conn, &id, &name))?;
+    let folder = state
+        .db
+        .with(|conn| folder_repo::rename(conn, &id, &name))?;
     window::notify_data_changed(&app);
     Ok(folder)
 }
@@ -50,7 +56,10 @@ pub fn list_labels(state: State<'_, AppState>) -> AppResult<Vec<Label>> {
 
 #[tauri::command]
 pub fn label_colors() -> Vec<String> {
-    label_repo::COLORS.iter().map(|color| color.to_string()).collect()
+    label_repo::COLORS
+        .iter()
+        .map(|color| color.to_string())
+        .collect()
 }
 
 #[tauri::command]
@@ -61,7 +70,9 @@ pub fn create_label(
     color: String,
 ) -> AppResult<Label> {
     let name = validation::display_name(&name, "Labelname")?;
-    let label = state.db.with(|conn| label_repo::create(conn, &name, &color))?;
+    let label = state
+        .db
+        .with(|conn| label_repo::create(conn, &name, &color))?;
     window::notify_data_changed(&app);
     Ok(label)
 }

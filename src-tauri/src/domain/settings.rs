@@ -236,9 +236,7 @@ pub fn is_valid_shortcut(shortcut: &str) -> bool {
         return false;
     }
     parts.iter().all(|part| {
-        !part.is_empty()
-            && part.len() <= 12
-            && part.chars().all(|c| c.is_ascii_alphanumeric())
+        !part.is_empty() && part.len() <= 12 && part.chars().all(|c| c.is_ascii_alphanumeric())
     })
 }
 

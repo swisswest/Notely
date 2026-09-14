@@ -9,7 +9,12 @@ pub fn parse_time(value: &str) -> Option<NaiveTime> {
         return None;
     }
     let bytes = value.as_bytes();
-    if bytes[2] != b':' || !bytes.iter().enumerate().all(|(i, b)| i == 2 || b.is_ascii_digit()) {
+    if bytes[2] != b':'
+        || !bytes
+            .iter()
+            .enumerate()
+            .all(|(i, b)| i == 2 || b.is_ascii_digit())
+    {
         return None;
     }
     NaiveTime::parse_from_str(value, TIME_FORMAT).ok()
@@ -36,7 +41,9 @@ pub fn format_time(time: NaiveTime) -> String {
 pub fn due_datetime(date: NaiveDate, time: Option<NaiveTime>) -> NaiveDateTime {
     match time {
         Some(time) => date.and_time(time),
-        None => date.and_hms_opt(23, 59, 0).unwrap_or_else(|| date.and_time(NaiveTime::MIN)),
+        None => date
+            .and_hms_opt(23, 59, 0)
+            .unwrap_or_else(|| date.and_time(NaiveTime::MIN)),
     }
 }
 

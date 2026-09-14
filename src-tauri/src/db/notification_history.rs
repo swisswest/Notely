@@ -68,9 +68,24 @@ mod tests {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
             let task_id = seed_task(conn);
-            assert!(claim(conn, &task_id, NotificationKind::Due, "2026-09-11T12:00")?);
-            assert!(!claim(conn, &task_id, NotificationKind::Due, "2026-09-11T12:00")?);
-            assert!(!claim(conn, &task_id, NotificationKind::Due, "2026-09-11T12:00")?);
+            assert!(claim(
+                conn,
+                &task_id,
+                NotificationKind::Due,
+                "2026-09-11T12:00"
+            )?);
+            assert!(!claim(
+                conn,
+                &task_id,
+                NotificationKind::Due,
+                "2026-09-11T12:00"
+            )?);
+            assert!(!claim(
+                conn,
+                &task_id,
+                NotificationKind::Due,
+                "2026-09-11T12:00"
+            )?);
             Ok(())
         })
         .expect("operations");
@@ -81,9 +96,24 @@ mod tests {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
             let task_id = seed_task(conn);
-            assert!(claim(conn, &task_id, NotificationKind::Lead, "2026-09-11T11:00")?);
-            assert!(claim(conn, &task_id, NotificationKind::Due, "2026-09-11T12:00")?);
-            assert!(claim(conn, &task_id, NotificationKind::Overdue, "2026-09-11T13:00")?);
+            assert!(claim(
+                conn,
+                &task_id,
+                NotificationKind::Lead,
+                "2026-09-11T11:00"
+            )?);
+            assert!(claim(
+                conn,
+                &task_id,
+                NotificationKind::Due,
+                "2026-09-11T12:00"
+            )?);
+            assert!(claim(
+                conn,
+                &task_id,
+                NotificationKind::Overdue,
+                "2026-09-11T13:00"
+            )?);
             Ok(())
         })
         .expect("operations");
@@ -98,7 +128,9 @@ mod tests {
             tasks::purge(conn, &task_id)?;
 
             let remaining: i64 =
-                conn.query_row("SELECT COUNT(*) FROM notification_history", [], |row| row.get(0))?;
+                conn.query_row("SELECT COUNT(*) FROM notification_history", [], |row| {
+                    row.get(0)
+                })?;
             assert_eq!(remaining, 0);
             Ok(())
         })

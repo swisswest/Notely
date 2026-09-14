@@ -32,22 +32,21 @@ pub async fn analyze_note(
 
     let api_key = SecretStore::require_api_key()?;
 
-    let (outcome, usage) = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content)
-        .await
-    {
-        Ok(result) => result,
-        Err(err) => {
-            let _ = state.db.with(|conn| {
-                note_repo::set_analysis_status(conn, &note_id, ANALYSIS_STATUS_FAILED)
-            });
-            logging::warn("ai", format!("Analyse fehlgeschlagen: {err}"));
-            return Err(err);
-        }
-    };
+    let (outcome, usage) =
+        match ai::analyze_note(&state.claude, &api_key, &settings, &note.content).await {
+            Ok(result) => result,
+            Err(err) => {
+                let _ = state.db.with(|conn| {
+                    note_repo::set_analysis_status(conn, &note_id, ANALYSIS_STATUS_FAILED)
+                });
+                logging::warn("ai", format!("Analyse fehlgeschlagen: {err}"));
+                return Err(err);
+            }
+        };
 
-    let _ = state.db.with(|conn| {
-        usage_repo::record(conn, &settings.claude.model, usage, Some(&note_id))
-    });
+    let _ = state
+        .db
+        .with(|conn| usage_repo::record(conn, &settings.claude.model, usage, Some(&note_id)));
 
     for reason in &outcome.rejected {
         logging::warn("ai", format!("Vorschlag verworfen: {reason}"));

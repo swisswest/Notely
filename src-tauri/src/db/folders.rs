@@ -17,7 +17,8 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Folder> {
 }
 
 pub fn list(conn: &Connection) -> AppResult<Vec<Folder>> {
-    let sql = format!("SELECT {COLUMNS} FROM folders ORDER BY position ASC, name COLLATE NOCASE ASC");
+    let sql =
+        format!("SELECT {COLUMNS} FROM folders ORDER BY position ASC, name COLLATE NOCASE ASC");
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();
     for row in stmt.query_map([], map)? {
@@ -44,7 +45,10 @@ pub fn create(conn: &Connection, name: &str) -> AppResult<Folder> {
 
 pub fn rename(conn: &Connection, id: &str, name: &str) -> AppResult<Folder> {
     let changed = conn
-        .execute("UPDATE folders SET name = ?2 WHERE id = ?1", params![id, name])
+        .execute(
+            "UPDATE folders SET name = ?2 WHERE id = ?1",
+            params![id, name],
+        )
         .map_err(duplicate_name)?;
     if changed == 0 {
         return Err(AppError::NotFound(format!("Ordner {id}")));

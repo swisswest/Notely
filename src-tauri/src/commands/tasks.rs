@@ -82,7 +82,9 @@ pub fn snooze_task(
 #[tauri::command]
 pub fn clear_snooze(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<Task> {
     let id = validation::identifier(&id, "Task-ID")?;
-    let task = state.db.with(|conn| repo::set_snoozed_until(conn, &id, None))?;
+    let task = state
+        .db
+        .with(|conn| repo::set_snoozed_until(conn, &id, None))?;
     window::notify_data_changed(&app);
     Ok(task)
 }
@@ -144,9 +146,9 @@ pub fn bulk_reschedule(
 ) -> AppResult<usize> {
     let ids = checked_ids(ids)?;
     let (date, time_value) = validation::due_pair(due_date.as_deref(), due_time.as_deref())?;
-    let changed = state.db.with(|conn| {
-        repo::bulk_reschedule(conn, &ids, date.as_deref(), time_value.as_deref())
-    })?;
+    let changed = state
+        .db
+        .with(|conn| repo::bulk_reschedule(conn, &ids, date.as_deref(), time_value.as_deref()))?;
     window::notify_data_changed(&app);
     Ok(changed)
 }

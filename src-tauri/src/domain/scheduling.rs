@@ -157,7 +157,9 @@ mod tests {
         let settings = AppSettings::default();
         let task = task_due(Some("12:00"));
         let planned = plan(&task, &settings, now_at(12, 30));
-        assert!(planned.iter().all(|item| item.kind == NotificationKind::Overdue));
+        assert!(planned
+            .iter()
+            .all(|item| item.kind == NotificationKind::Overdue));
     }
 
     #[test]

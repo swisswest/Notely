@@ -105,7 +105,9 @@ pub async fn test_connection(
             let message = if model_available {
                 format!("Verbindung erfolgreich. Modell '{model}' ist verfügbar.")
             } else {
-                format!("Verbindung erfolgreich, aber '{model}' steht diesem Key nicht zur Verfügung.")
+                format!(
+                    "Verbindung erfolgreich, aber '{model}' steht diesem Key nicht zur Verfügung."
+                )
             };
             Ok(ConnectionTest {
                 ok: true,

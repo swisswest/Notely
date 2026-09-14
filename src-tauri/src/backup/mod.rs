@@ -90,7 +90,10 @@ pub fn write(db: &Db, app_version: &str, dir: &Path) -> AppResult<BackupInfo> {
         .map_err(|err| AppError::Internal(format!("Backup-Ordner nicht anlegbar: {err}")))?;
 
     let payload = collect(db, app_version)?;
-    let file_name = format!("{FILE_PREFIX}{}.json", Local::now().format("%Y-%m-%d-%H%M%S"));
+    let file_name = format!(
+        "{FILE_PREFIX}{}.json",
+        Local::now().format("%Y-%m-%d-%H%M%S")
+    );
     let path = dir.join(&file_name);
 
     let json = serde_json::to_string_pretty(&payload)
@@ -131,7 +134,11 @@ pub fn write_markdown(db: &Db, dir: &Path) -> AppResult<BackupInfo> {
 
     text.push_str("## Offene Aufgaben\n\n");
     let mut open: Vec<&Task> = task_list.iter().filter(|task| !task.completed).collect();
-    open.sort_by(|a, b| a.due_date.cmp(&b.due_date).then(a.due_time.cmp(&b.due_time)));
+    open.sort_by(|a, b| {
+        a.due_date
+            .cmp(&b.due_date)
+            .then(a.due_time.cmp(&b.due_time))
+    });
     if open.is_empty() {
         text.push_str("_keine_\n");
     }
@@ -155,7 +162,9 @@ pub fn write_markdown(db: &Db, dir: &Path) -> AppResult<BackupInfo> {
             continue;
         }
 
-        let heading = folder.map(|value| value.name.as_str()).unwrap_or("Ohne Ordner");
+        let heading = folder
+            .map(|value| value.name.as_str())
+            .unwrap_or("Ohne Ordner");
         text.push_str(&format!("\n### {heading}\n"));
         for note in matching {
             let names: Vec<&str> = note
@@ -169,11 +178,17 @@ pub fn write_markdown(db: &Db, dir: &Path) -> AppResult<BackupInfo> {
             } else {
                 format!(" `{}`", names.join("` `"))
             };
-            text.push_str(&format!("\n**{}**{}\n\n{}\n", note.created_at, tags, note.content));
+            text.push_str(&format!(
+                "\n**{}**{}\n\n{}\n",
+                note.created_at, tags, note.content
+            ));
         }
     }
 
-    let path = dir.join(format!("notely-notizen-{}.md", Local::now().format("%Y-%m-%d")));
+    let path = dir.join(format!(
+        "notely-notizen-{}.md",
+        Local::now().format("%Y-%m-%d")
+    ));
     fs::write(&path, text)
         .map_err(|err| AppError::Internal(format!("Export nicht schreibbar: {err}")))?;
     info_for(&path)
@@ -465,7 +480,9 @@ fn free_name(conn: &Connection, table: &str, name: &str) -> AppResult<String> {
         }
         candidate = format!("{name} (Import {attempt})");
     }
-    Err(AppError::validation("Name konnte nicht eindeutig gemacht werden"))
+    Err(AppError::validation(
+        "Name konnte nicht eindeutig gemacht werden",
+    ))
 }
 
 fn info_for(path: &Path) -> AppResult<BackupInfo> {
@@ -656,8 +673,9 @@ mod tests {
         settings.backup.last_backup_at = Some(crate::domain::time::to_rfc3339(now));
         assert!(!due(&settings, now));
 
-        settings.backup.last_backup_at =
-            Some(crate::domain::time::to_rfc3339(now - chrono::Duration::hours(21)));
+        settings.backup.last_backup_at = Some(crate::domain::time::to_rfc3339(
+            now - chrono::Duration::hours(21),
+        ));
         assert!(due(&settings, now));
 
         settings.backup.enabled = false;

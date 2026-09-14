@@ -32,7 +32,9 @@ pub fn display_name(value: &str, label: &str) -> AppResult<String> {
         .join(" ");
 
     if cleaned.is_empty() {
-        return Err(AppError::validation(format!("{label} darf nicht leer sein")));
+        return Err(AppError::validation(format!(
+            "{label} darf nicht leer sein"
+        )));
     }
     if cleaned.chars().count() > MAX_NAME_CHARS {
         return Err(AppError::validation(format!(
@@ -87,7 +89,10 @@ pub fn due_pair(
     due(date, time_value)
 }
 
-fn due(date: Option<&str>, time_value: Option<&str>) -> AppResult<(Option<String>, Option<String>)> {
+fn due(
+    date: Option<&str>,
+    time_value: Option<&str>,
+) -> AppResult<(Option<String>, Option<String>)> {
     let parsed_date = match date.map(str::trim).filter(|value| !value.is_empty()) {
         Some(value) => Some(
             time::parse_date(value)
@@ -159,8 +164,12 @@ mod tests {
 
     #[test]
     fn accepts_valid_input() {
-        let valid = task_draft(draft("  Migration \n vorbereiten ", Some("2026-09-11"), Some("12:00")))
-            .expect("gültig");
+        let valid = task_draft(draft(
+            "  Migration \n vorbereiten ",
+            Some("2026-09-11"),
+            Some("12:00"),
+        ))
+        .expect("gültig");
         assert_eq!(valid.title, "Migration vorbereiten");
         assert_eq!(valid.due_date.as_deref(), Some("2026-09-11"));
     }

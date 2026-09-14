@@ -22,7 +22,9 @@ impl SecretStore {
             return Err(AppError::validation("Der API-Key hat kein gültiges Format"));
         }
         if !trimmed.is_ascii() || trimmed.chars().any(|c| c.is_ascii_whitespace()) {
-            return Err(AppError::validation("Der API-Key enthält ungültige Zeichen"));
+            return Err(AppError::validation(
+                "Der API-Key enthält ungültige Zeichen",
+            ));
         }
 
         Self::entry()?

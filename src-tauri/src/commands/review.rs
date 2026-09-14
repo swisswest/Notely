@@ -28,7 +28,8 @@ pub fn review_status(state: State<'_, AppState>) -> AppResult<ReviewStatus> {
 
     state.db.with(|conn| {
         let settings = settings_repo::load(conn)?;
-        let completed_today = settings.review.last_completed_date.as_deref() == Some(today.as_str());
+        let completed_today =
+            settings.review.last_completed_date.as_deref() == Some(today.as_str());
         let due = review::is_due(
             &settings.review,
             now,
@@ -47,7 +48,11 @@ pub fn review_status(state: State<'_, AppState>) -> AppResult<ReviewStatus> {
                 tasks.push(task);
             }
         }
-        tasks.sort_by(|a, b| a.due_date.cmp(&b.due_date).then(a.due_time.cmp(&b.due_time)));
+        tasks.sort_by(|a, b| {
+            a.due_date
+                .cmp(&b.due_date)
+                .then(a.due_time.cmp(&b.due_time))
+        });
 
         Ok(ReviewStatus {
             due,

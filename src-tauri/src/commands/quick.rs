@@ -2,8 +2,9 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::ai;
-use crate::db::models::{AnalysisResult, TaskDraft, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED,
-                        ANALYSIS_STATUS_OK};
+use crate::db::models::{
+    AnalysisResult, TaskDraft, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED, ANALYSIS_STATUS_OK,
+};
 use crate::db::{
     notes as note_repo, settings as settings_repo, tasks as task_repo, usage as usage_repo,
 };
@@ -53,28 +54,27 @@ pub async fn quick_capture(
     }
 
     let api_key = SecretStore::require_api_key()?;
-    let (outcome, usage) = match ai::analyze_note(&state.claude, &api_key, &settings, &note.content)
-        .await
-    {
-        Ok(result) => result,
-        Err(err) => {
-            let _ = state.db.with(|conn| {
-                note_repo::set_analysis_status(conn, &note.id, ANALYSIS_STATUS_FAILED)
-            });
-            logging::warn("quick", format!("Analyse fehlgeschlagen: {err}"));
-            return Ok(QuickResult {
-                note_id: note.id,
-                created_tasks: 0,
-                analyzed: false,
-                needs_confirmation: false,
-                message: "Notiz gespeichert, Analyse nicht möglich".to_string(),
-            });
-        }
-    };
+    let (outcome, usage) =
+        match ai::analyze_note(&state.claude, &api_key, &settings, &note.content).await {
+            Ok(result) => result,
+            Err(err) => {
+                let _ = state.db.with(|conn| {
+                    note_repo::set_analysis_status(conn, &note.id, ANALYSIS_STATUS_FAILED)
+                });
+                logging::warn("quick", format!("Analyse fehlgeschlagen: {err}"));
+                return Ok(QuickResult {
+                    note_id: note.id,
+                    created_tasks: 0,
+                    analyzed: false,
+                    needs_confirmation: false,
+                    message: "Notiz gespeichert, Analyse nicht möglich".to_string(),
+                });
+            }
+        };
 
-    let _ = state.db.with(|conn| {
-        usage_repo::record(conn, &settings.claude.model, usage, Some(&note.id))
-    });
+    let _ = state
+        .db
+        .with(|conn| usage_repo::record(conn, &settings.claude.model, usage, Some(&note.id)));
 
     let status = if outcome.suggestions.is_empty() {
         ANALYSIS_STATUS_EMPTY

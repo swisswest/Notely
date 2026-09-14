@@ -22,7 +22,10 @@ Regeln:
 pub fn build_user_message(note: &str, settings: &AppSettings, now: DateTime<Local>) -> String {
     let mut dayparts = String::new();
     for part in &settings.dayparts {
-        dayparts.push_str(&format!("- {} (Schlüssel: {}): {}\n", part.label, part.key, part.time));
+        dayparts.push_str(&format!(
+            "- {} (Schlüssel: {}): {}\n",
+            part.label, part.key, part.time
+        ));
     }
 
     let timezone = if settings.timezone.is_empty() {

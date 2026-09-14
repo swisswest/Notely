@@ -30,7 +30,8 @@ pub fn backup_now(app: AppHandle, state: State<'_, AppState>) -> AppResult<Backu
 
     state.db.with(|conn| {
         let mut settings = settings_repo::load(conn)?;
-        settings.backup.last_backup_at = Some(crate::domain::time::to_rfc3339(chrono::Local::now()));
+        settings.backup.last_backup_at =
+            Some(crate::domain::time::to_rfc3339(chrono::Local::now()));
         settings_repo::save(conn, &settings)?;
         let removed = backup::prune(&dir, settings.backup.keep)?;
         if removed > 0 {
