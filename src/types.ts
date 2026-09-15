@@ -44,6 +44,10 @@ export interface Task {
   confidence: number | null;
   snoozedUntil: string | null;
   deletedAt: string | null;
+  /** Wiederholungsregel in Textform, z. B. "weekly:1:mo,we". */
+  recurrence: string | null;
+  /** Klammert alle Aufgaben einer Serie. */
+  seriesId: string | null;
 }
 
 export interface TrashContents {
@@ -78,6 +82,7 @@ export interface TaskDraft {
   sourceNoteId: string | null;
   aiGenerated: boolean;
   confidence: number | null;
+  recurrence: string | null;
 }
 
 export interface TaskEdit {
@@ -86,6 +91,13 @@ export interface TaskEdit {
   description: string;
   dueDate: string | null;
   dueTime: string | null;
+  recurrence: string | null;
+}
+
+/** Ergebnis des Abhakens: bei einer Serie entsteht direkt der nächste Termin. */
+export interface CompletionResult {
+  task: Task;
+  followUp: Task | null;
 }
 
 export interface TaskSuggestion {
@@ -96,6 +108,47 @@ export interface TaskSuggestion {
   confidence: number;
   daypartKey: string | null;
   inPast: boolean;
+}
+
+/**
+ * Was mit einem Vorschlag passiert ist. `accepted` trägt den Stand, der
+ * übernommen werden soll - null bedeutet verworfen.
+ */
+export interface SuggestionDecision {
+  original: TaskSuggestion;
+  accepted: TaskSuggestion | null;
+}
+
+export type Verdict = 'accepted' | 'edited' | 'rejected';
+
+export interface FeedbackEntry {
+  id: number;
+  createdAt: string;
+  noteId: string | null;
+  model: string;
+  verdict: Verdict;
+  noteExcerpt: string;
+  suggested: TaskSuggestion;
+  corrected: TaskSuggestion | null;
+}
+
+export interface FeedbackCounts {
+  accepted: number;
+  edited: number;
+  rejected: number;
+}
+
+export interface FeedbackSummary {
+  total: FeedbackCounts;
+  recent: FeedbackCounts;
+  misses: FeedbackEntry[];
+}
+
+export interface UpdateInfo {
+  available: boolean;
+  currentVersion: string;
+  version: string | null;
+  notes: string | null;
 }
 
 export interface AnalysisResult {
@@ -137,6 +190,7 @@ export interface AppSettings {
     autoAnalyzeOnSave: boolean;
     confirmBeforeCreate: boolean;
     autoCreateMinConfidence: number;
+    collectFeedback: boolean;
   };
   appearance: {
     theme: ThemeMode;
@@ -157,6 +211,10 @@ export interface AppSettings {
     time: string;
     lastCompletedDate: string | null;
     lastNotifiedDate: string | null;
+  };
+  updates: {
+    checkOnStart: boolean;
+    lastSeenVersion: string | null;
   };
   timezone: string;
   onboardingCompleted: boolean;

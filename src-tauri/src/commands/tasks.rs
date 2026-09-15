@@ -38,23 +38,37 @@ pub fn delete_task(app: AppHandle, state: State<'_, AppState>, id: String) -> Ap
     Ok(())
 }
 
+/// Ergebnis des Abhakens. `followUp` ist gesetzt, wenn eine Serie den
+/// nächsten Termin erzeugt hat - die Oberfläche kann das dann melden.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionResult {
+    pub task: Task,
+    pub follow_up: Option<Task>,
+}
+
 #[tauri::command]
 pub fn set_task_completed(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
     completed: bool,
-) -> AppResult<Task> {
+) -> AppResult<CompletionResult> {
     let id = validation::identifier(&id, "Task-ID")?;
-    let task = state.db.with(|conn| {
+    let result = state.db.with(|conn| {
         let task = repo::set_completed(conn, &id, completed)?;
         if completed {
             notification_history::clear_for_task(conn, &id)?;
         }
-        Ok(task)
+        let follow_up = if completed {
+            repo::advance_series(conn, &task)?
+        } else {
+            None
+        };
+        Ok(CompletionResult { task, follow_up })
     })?;
     window::notify_data_changed(&app);
-    Ok(task)
+    Ok(result)
 }
 
 /// Verschiebt die Erinnerung. Ohne Angabe gilt der in den Einstellungen

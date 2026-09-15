@@ -104,6 +104,7 @@ pub async fn quick_capture(
             source_note_id: Some(note.id.clone()),
             ai_generated: true,
             confidence: Some(suggestion.confidence),
+            recurrence: None,
         })?;
 
         match state.db.with(|conn| task_repo::create(conn, &draft)) {

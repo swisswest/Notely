@@ -6,7 +6,7 @@ use crate::error::{AppError, AppResult};
 
 const COLUMNS: &str = "id, title, description, created_at, updated_at, due_date, due_time,
                        completed, completed_at, source_note_id, ai_generated, confidence,
-                       snoozed_until, deleted_at";
+                       snoozed_until, deleted_at, recurrence, series_id";
 
 pub const MAX_BULK: usize = 500;
 
@@ -26,17 +26,22 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Task> {
         confidence: row.get(11)?,
         snoozed_until: row.get(12)?,
         deleted_at: row.get(13)?,
+        recurrence: row.get(14)?,
+        series_id: row.get(15)?,
     })
 }
 
 pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
     let now = now_utc();
     let id = new_id();
+    // Eine Serie bekommt sofort eine eigene ID, damit alle Folgeaufgaben
+    // zusammengehören - auch wenn die erste später gelöscht wird.
+    let series_id = draft.recurrence.as_ref().map(|_| new_id());
     conn.execute(
         "INSERT INTO tasks
            (id, title, description, created_at, updated_at, due_date, due_time,
-            completed, source_note_id, ai_generated, confidence)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9)",
+            completed, source_note_id, ai_generated, confidence, recurrence, series_id)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11)",
         params![
             id,
             draft.title,
@@ -47,6 +52,8 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
             draft.source_note_id,
             i64::from(draft.ai_generated),
             draft.confidence,
+            draft.recurrence,
+            series_id,
         ],
     )?;
     get(conn, &id)
@@ -173,9 +180,18 @@ pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Task>>
 }
 
 pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
+    let existing = get(conn, &edit.id)?;
+    // Wird aus einer einmaligen Aufgabe eine Serie, braucht sie eine Serien-ID.
+    let series_id = match (&edit.recurrence, existing.series_id) {
+        (Some(_), None) => Some(new_id()),
+        (Some(_), Some(current)) => Some(current),
+        (None, current) => current,
+    };
+
     let changed = conn.execute(
         "UPDATE tasks
-            SET title = ?2, description = ?3, due_date = ?4, due_time = ?5, updated_at = ?6
+            SET title = ?2, description = ?3, due_date = ?4, due_time = ?5,
+                recurrence = ?6, series_id = ?7, updated_at = ?8
           WHERE id = ?1 AND deleted_at IS NULL",
         params![
             edit.id,
@@ -183,6 +199,8 @@ pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
             edit.description,
             edit.due_date,
             edit.due_time,
+            edit.recurrence,
+            series_id,
             now_utc()
         ],
     )?;
@@ -209,6 +227,75 @@ pub fn set_completed(conn: &Connection, id: &str, completed: bool) -> AppResult<
         return Err(AppError::NotFound(format!("Task {id}")));
     }
     get(conn, id)
+}
+
+/// Legt die nächste Aufgabe einer Serie an. `None`, wenn es keine Wiederholung
+/// gibt oder die Serie ausgelaufen ist.
+///
+/// Eine kaputte Regel bricht das Abhaken nicht ab - sie landet im Log und die
+/// Serie endet. Alles andere würde eine Aufgabe unerledigbar machen.
+pub fn advance_series(conn: &Connection, task: &Task) -> AppResult<Option<Task>> {
+    let (Some(rule_text), Some(due_date)) = (task.recurrence.as_deref(), task.due_date.as_deref())
+    else {
+        return Ok(None);
+    };
+
+    let rule = match crate::domain::recurrence::Recurrence::parse(rule_text) {
+        Ok(rule) => rule,
+        Err(err) => {
+            crate::logging::warn(
+                "tasks",
+                format!("Wiederholung von Task {} nicht lesbar: {err}", task.id),
+            );
+            return Ok(None);
+        }
+    };
+
+    let Some(current) = crate::domain::time::parse_date(due_date) else {
+        return Ok(None);
+    };
+    let Some(next) = rule.next(current) else {
+        return Ok(None);
+    };
+    let next_date = crate::domain::time::format_date(next);
+
+    // Zweimal abhaken darf keine zweite Folgeaufgabe erzeugen.
+    if let Some(series_id) = task.series_id.as_deref() {
+        let existing: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM tasks
+             WHERE series_id = ?1 AND due_date = ?2 AND deleted_at IS NULL",
+            params![series_id, next_date],
+            |row| row.get(0),
+        )?;
+        if existing > 0 {
+            return Ok(None);
+        }
+    }
+
+    let now = now_utc();
+    let id = new_id();
+    let series_id = task.series_id.clone().unwrap_or_else(new_id);
+    conn.execute(
+        "INSERT INTO tasks
+           (id, title, description, created_at, updated_at, due_date, due_time,
+            completed, source_note_id, ai_generated, confidence, recurrence, series_id)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11)",
+        params![
+            id,
+            task.title,
+            task.description,
+            now,
+            next_date,
+            task.due_time,
+            task.source_note_id,
+            i64::from(task.ai_generated),
+            task.confidence,
+            rule.to_rule(),
+            series_id,
+        ],
+    )?;
+
+    get(conn, &id).map(Some)
 }
 
 pub fn set_snoozed_until(conn: &Connection, id: &str, until: Option<&str>) -> AppResult<Task> {
@@ -264,16 +351,23 @@ pub fn purge_expired(conn: &Connection, days: i64) -> AppResult<usize> {
 }
 
 /// Mehrere Tasks in einem Rutsch. Der Aufrufer hat die IDs bereits geprüft.
+/// Serien laufen dabei genauso weiter wie beim einzelnen Abhaken.
 pub fn bulk_set_completed(conn: &Connection, ids: &[String], completed: bool) -> AppResult<usize> {
     let now = now_utc();
     let completed_at = if completed { Some(now.clone()) } else { None };
     let mut changed = 0;
     for id in ids.iter().take(MAX_BULK) {
-        changed += conn.execute(
+        let affected = conn.execute(
             "UPDATE tasks SET completed = ?2, completed_at = ?3, updated_at = ?4
              WHERE id = ?1 AND deleted_at IS NULL",
             params![id, i64::from(completed), completed_at, now],
         )?;
+        changed += affected;
+        if affected > 0 && completed {
+            if let Ok(task) = get(conn, id) {
+                advance_series(conn, &task)?;
+            }
+        }
     }
     Ok(changed)
 }
@@ -360,7 +454,14 @@ mod tests {
             source_note_id: None,
             ai_generated: false,
             confidence: None,
+            recurrence: None,
         }
+    }
+
+    fn repeating(title: &str, date: &str, rule: &str) -> TaskDraft {
+        let mut value = draft(title, Some(date), Some("08:00"));
+        value.recurrence = Some(rule.into());
+        value
     }
 
     #[test]
@@ -483,6 +584,125 @@ mod tests {
     }
 
     #[test]
+    fn completing_a_series_creates_exactly_one_follow_up() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(conn, &repeating("Muell rausstellen", "2026-09-15", "weekly:1"))?;
+            assert!(task.series_id.is_some());
+
+            let done = set_completed(conn, &task.id, true)?;
+            let next = advance_series(conn, &done)?.expect("Folgeaufgabe");
+            assert_eq!(next.due_date.as_deref(), Some("2026-09-22"));
+            assert_eq!(next.due_time.as_deref(), Some("08:00"));
+            assert_eq!(next.series_id, task.series_id);
+            assert!(!next.completed);
+
+            // Ein zweiter Durchlauf darf keine Dublette erzeugen.
+            assert!(advance_series(conn, &done)?.is_none());
+            assert_eq!(list(conn, true, 10)?.len(), 2);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn a_series_without_recurrence_stays_a_single_task() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(conn, &draft("Einmalig", Some("2026-09-15"), None))?;
+            assert!(task.series_id.is_none());
+            let done = set_completed(conn, &task.id, true)?;
+            assert!(advance_series(conn, &done)?.is_none());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn an_expired_series_stops() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(
+                conn,
+                &repeating("Kurz", "2026-09-15", "daily:1|until:2026-09-15"),
+            )?;
+            let done = set_completed(conn, &task.id, true)?;
+            assert!(advance_series(conn, &done)?.is_none());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn a_broken_rule_does_not_block_completing() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(conn, &draft("Kaputt", Some("2026-09-15"), None))?;
+            conn.execute(
+                "UPDATE tasks SET recurrence = 'voellig-kaputt' WHERE id = ?1",
+                params![task.id],
+            )?;
+            let stored = get(conn, &task.id)?;
+            assert!(advance_series(conn, &stored)?.is_none());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn turning_a_task_into_a_series_assigns_an_id() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(conn, &draft("Wird Serie", Some("2026-09-15"), None))?;
+            let updated = update(
+                conn,
+                &TaskEdit {
+                    id: task.id.clone(),
+                    title: "Wird Serie".into(),
+                    description: String::new(),
+                    due_date: Some("2026-09-15".into()),
+                    due_time: None,
+                    recurrence: Some("monthly:1".into()),
+                },
+            )?;
+            assert!(updated.series_id.is_some());
+
+            // Ein zweiter Edit behält dieselbe Serien-ID.
+            let again = update(
+                conn,
+                &TaskEdit {
+                    id: task.id.clone(),
+                    title: "Wird Serie".into(),
+                    description: String::new(),
+                    due_date: Some("2026-09-15".into()),
+                    due_time: None,
+                    recurrence: Some("monthly:2".into()),
+                },
+            )?;
+            assert_eq!(again.series_id, updated.series_id);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn bulk_completing_also_advances_series() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = create(conn, &repeating("Taeglich", "2026-09-15", "daily:1"))?;
+            assert_eq!(bulk_set_completed(conn, &[task.id.clone()], true)?, 1);
+
+            let open: Vec<String> = list(conn, false, 10)?
+                .into_iter()
+                .map(|task| task.due_date.unwrap_or_default())
+                .collect();
+            assert_eq!(open, vec!["2026-09-16"]);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
     fn editing_the_due_date_clears_notification_history() {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
@@ -501,6 +721,7 @@ mod tests {
                     description: String::new(),
                     due_date: Some("2026-09-12".into()),
                     due_time: Some("09:00".into()),
+                    recurrence: None,
                 },
             )?;
 

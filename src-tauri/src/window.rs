@@ -29,6 +29,14 @@ pub fn navigate(app: &AppHandle, target: &str) {
     }
 }
 
+/// Schickt ein Ereignis ans Frontend. Zustellfehler sind nie kritisch - das
+/// Frontend holt sich seine Daten notfalls beim nächsten Wechsel selbst.
+pub fn emit<T: serde::Serialize + Clone>(app: &AppHandle, event: &str, payload: T) {
+    if let Err(err) = app.emit(event, payload) {
+        logging::warn("window", format!("Ereignis {event} nicht zustellbar: {err}"));
+    }
+}
+
 pub fn notify_data_changed(app: &AppHandle) {
     if let Err(err) = app.emit(events::DATA_CHANGED, ()) {
         logging::warn("window", format!("Aktualisierung nicht zustellbar: {err}"));

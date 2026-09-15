@@ -103,6 +103,26 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX idx_ai_usage_time ON ai_usage(occurred_at DESC);
     "#,
+    // 4 - Wiederkehrende Aufgaben und Rueckmeldungen zur Analysequalitaet
+    r#"
+    ALTER TABLE tasks ADD COLUMN recurrence TEXT;
+    ALTER TABLE tasks ADD COLUMN series_id TEXT;
+
+    CREATE INDEX idx_tasks_series ON tasks(series_id);
+
+    CREATE TABLE ai_feedback (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at   TEXT NOT NULL,
+        note_id      TEXT,
+        model        TEXT NOT NULL DEFAULT '',
+        verdict      TEXT NOT NULL,
+        note_excerpt TEXT NOT NULL DEFAULT '',
+        suggested    TEXT NOT NULL,
+        corrected    TEXT
+    );
+
+    CREATE INDEX idx_ai_feedback_time ON ai_feedback(created_at DESC);
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -151,12 +171,12 @@ mod tests {
         let tables: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
-                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels','ai_usage')",
+                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels','ai_usage','ai_feedback')",
                 [],
                 |row| row.get(0),
             )
             .expect("tables");
-        assert_eq!(tables, 8);
+        assert_eq!(tables, 9);
     }
 
     #[test]
@@ -185,5 +205,35 @@ mod tests {
             .expect("note");
         assert_eq!(content, "Bestandsnotiz");
         assert!(folder.is_none());
+    }
+
+    #[test]
+    fn upgrade_from_version_three_keeps_existing_tasks() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+
+        for (index, migration) in MIGRATIONS.iter().take(3).enumerate() {
+            conn.execute_batch(migration)
+                .unwrap_or_else(|err| panic!("schema v{}: {err}", index + 1));
+        }
+        conn.execute_batch("PRAGMA user_version = 3")
+            .expect("version");
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, updated_at)
+             VALUES ('t1', 'Bestandsaufgabe', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        run(&conn).expect("upgrade");
+
+        let (title, recurrence): (String, Option<String>) = conn
+            .query_row(
+                "SELECT title, recurrence FROM tasks WHERE id = 't1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("task");
+        assert_eq!(title, "Bestandsaufgabe");
+        assert!(recurrence.is_none());
     }
 }

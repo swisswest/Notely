@@ -1,3 +1,4 @@
+pub mod recurrence;
 pub mod review;
 pub mod scheduling;
 pub mod settings;

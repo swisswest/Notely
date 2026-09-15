@@ -1,0 +1,90 @@
+name: Release
+
+# Ausgeloest durch einen Versions-Tag:
+#   git tag v0.5.0 && git push origin v0.5.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write   # um danach den Website-Workflow anzustossen
+
+jobs:
+  release:
+    name: Installer bauen und veroeffentlichen
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Node einrichten
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rust einrichten
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      - name: Tests
+        run: |
+          npm run typecheck
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Der Release-Build erzeugt zusaetzlich das signierte Update-Archiv.
+      # Ohne die beiden Secrets bricht Tauri hier bewusst ab, statt ein
+      # Update auszuliefern, das niemand verifizieren kann.
+      - name: Installer und Update-Archiv bauen
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri:build -- --config src-tauri/tauri.release.conf.json
+
+      - name: Update-Katalog erzeugen
+        run: npm run latest-json
+
+      - name: Release anlegen
+        uses: softprops/action-gh-release@v3
+        with:
+          # Direkt veroeffentlichen, damit Website und /releases/latest sofort die neue Version liefern.
+          # Tags mit Bindestrich (v0.6.0-beta.1) werden Vorabversionen und nie als "aktuell" angeboten.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*.nsis.zip
+            src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
+            src-tauri/target/release/bundle/latest.json
+          body: |
+            ## Installation
+
+            `Notely_*_x64-setup.exe` herunterladen und ausfuehren. Installation
+            ins Benutzerprofil, keine Adminrechte noetig.
+
+            Windows meldet beim ersten Start "unbekannter Herausgeber", weil die
+            Datei nicht signiert ist: *Weitere Informationen* -> *Trotzdem ausfuehren*.
+
+            Fuer die Aufgabenerkennung wird ein eigener Claude API-Key benoetigt
+            (console.anthropic.com). Ohne Key funktioniert alles ausser der Analyse.
+
+            Ab Version 0.6.0 meldet sich Notely selbst, wenn es etwas Neues gibt.
+            Wer noch 0.5.0 nutzt, installiert diese Version einmal von Hand.
+
+      # Releases, die mit GITHUB_TOKEN erstellt werden, loesen keine anderen Workflows aus.
+      # Deshalb die Website hier explizit neu bauen.
+      - name: Website aktualisieren
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main

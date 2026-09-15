@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Baut Notely zu einer lauffaehigen Windows-Anwendung.
 
@@ -108,6 +108,19 @@ try {
 }
 finally {
     Pop-Location
+}
+
+# Der lokale Build braucht keinen privaten Schluessel - er erzeugt kein
+# Update-Archiv. Der oeffentliche Schluessel muss aber stimmen, sonst laeuft
+# die spaetere Update-Pruefung in der fertigen App ins Leere.
+$confPath = Join-Path $projectRoot 'src-tauri\tauri.conf.json'
+$pubkey = (Get-Content $confPath -Raw | ConvertFrom-Json).plugins.updater.pubkey
+if ($pubkey -like 'HIER_DEN_*') {
+    Write-Miss 'Update-Schluessel fehlt noch. Einmalig anlegen:'
+    Write-Host '    npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\notely.key"' -ForegroundColor Gray
+    Write-Host '    Den oeffentlichen Schluessel in src-tauri/tauri.conf.json unter plugins.updater.pubkey eintragen.' -ForegroundColor Gray
+    Write-Host '    Den privaten Schluessel als GitHub-Secret TAURI_SIGNING_PRIVATE_KEY hinterlegen.' -ForegroundColor Gray
+    Write-Host '    Die App laesst sich bauen und nutzen - nur die Update-Pruefung bleibt bis dahin ohne Funktion.' -ForegroundColor Gray
 }
 
 Write-Step 'Release-Build (der erste Durchlauf dauert einige Minuten)'

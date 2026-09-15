@@ -8,7 +8,9 @@ import { ClaudeSection } from './sections/ClaudeSection';
 import { DataSection } from './sections/DataSection';
 import { DaypartsSection } from './sections/DaypartsSection';
 import { NotificationsSection } from './sections/NotificationsSection';
+import { QualitySection } from './sections/QualitySection';
 import { SystemSection } from './sections/SystemSection';
+import { UpdateSection } from './sections/UpdateSection';
 
 export function SettingsView() {
   const status = useStore((state) => state.status);
@@ -49,7 +51,9 @@ export function SettingsView() {
         <DaypartsSection settings={draft} onChange={setDraft} />
         <NotificationsSection settings={draft} onChange={setDraft} />
         <SystemSection settings={draft} onChange={setDraft} />
+        <QualitySection settings={draft} onChange={setDraft} />
         <DataSection settings={draft} onChange={setDraft} />
+        <UpdateSection settings={draft} version={status.appVersion} onChange={setDraft} />
 
         <section className="settings__group">
           <h3 className="settings__group-title">Info</h3>

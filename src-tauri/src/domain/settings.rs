@@ -93,6 +93,9 @@ pub struct AiSettings {
     pub confirm_before_create: bool,
     /// Vorschläge unterhalb dieser Schwelle werden nie automatisch angelegt.
     pub auto_create_min_confidence: f64,
+    /// Hält lokal fest, welche Vorschläge übernommen, geändert oder verworfen
+    /// wurden. Ohne diese Daten lässt sich die Qualität nur raten.
+    pub collect_feedback: bool,
 }
 
 impl Default for AiSettings {
@@ -101,6 +104,26 @@ impl Default for AiSettings {
             auto_analyze_on_save: false,
             confirm_before_create: true,
             auto_create_min_confidence: 0.7,
+            collect_feedback: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateSettings {
+    /// Beim Start still nach einer neueren Version sehen.
+    pub check_on_start: bool,
+    /// Letzte Version, auf die hingewiesen wurde - verhindert, dass derselbe
+    /// Hinweis bei jedem Start erscheint.
+    pub last_seen_version: Option<String>,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        Self {
+            check_on_start: true,
+            last_seen_version: None,
         }
     }
 }
@@ -139,6 +162,7 @@ pub struct AppSettings {
     pub backup: BackupSettings,
     pub quick_capture: QuickCaptureSettings,
     pub review: ReviewSettings,
+    pub updates: UpdateSettings,
     /// IANA-Zeitzone, vom Frontend beim Start gemeldet.
     pub timezone: String,
     pub onboarding_completed: bool,
@@ -156,6 +180,7 @@ impl Default for AppSettings {
             backup: BackupSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
             review: ReviewSettings::default(),
+            updates: UpdateSettings::default(),
             timezone: String::new(),
             onboarding_completed: false,
         }
@@ -349,6 +374,12 @@ impl AppSettings {
                 "Uhrzeit für den Tagesabschluss ist ungültig",
             ));
         }
+        // Kommt zwar vom Backend, geht aber ueber das Frontend zurueck.
+        if let Some(version) = self.updates.last_seen_version.as_deref() {
+            if version.len() > 40 {
+                return Err(AppError::validation("Versionsangabe ist ungültig"));
+            }
+        }
         if self.quick_capture.enabled && !is_valid_shortcut(&self.quick_capture.shortcut) {
             return Err(AppError::validation(
                 "Kürzel muss die Form \"Ctrl+Alt+N\" haben",
@@ -422,6 +453,25 @@ mod tests {
         let mut settings = AppSettings::default();
         settings.dayparts[1].key = settings.dayparts[0].key.clone();
         assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn new_sections_have_sensible_defaults() {
+        let settings = AppSettings::default();
+        assert!(settings.updates.check_on_start);
+        assert!(settings.updates.last_seen_version.is_none());
+        assert!(settings.ai.collect_feedback);
+    }
+
+    #[test]
+    fn old_settings_gain_the_new_sections() {
+        // Eine Konfiguration aus 0.5.0 kennt weder updates noch collectFeedback.
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"timezone":"Europe/Zurich"}"#).expect("parse");
+        assert_eq!(settings.timezone, "Europe/Zurich");
+        assert!(settings.updates.check_on_start);
+        assert!(settings.ai.collect_feedback);
+        settings.validate().expect("gültig");
     }
 
     #[test]

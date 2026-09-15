@@ -1,3 +1,4 @@
+pub mod feedback;
 pub mod folders;
 pub mod labels;
 pub mod migrations;

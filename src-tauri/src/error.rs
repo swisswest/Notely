@@ -32,6 +32,9 @@ pub enum AppError {
     #[error("Claude hat keine gültige Antwort geliefert: {0}")]
     InvalidAiResponse(String),
 
+    #[error("Es liegt kein veröffentlichter Update-Katalog vor")]
+    UpdateUnavailable,
+
     #[error("Windows Credential Manager nicht verfügbar: {0}")]
     SecretStore(String),
 
@@ -51,6 +54,7 @@ impl AppError {
             AppError::Network(_) => "NETWORK_ERROR",
             AppError::Api { .. } => "API_ERROR",
             AppError::InvalidAiResponse(_) => "INVALID_AI_RESPONSE",
+            AppError::UpdateUnavailable => "UPDATE_UNAVAILABLE",
             AppError::SecretStore(_) => "SECRET_STORE_ERROR",
             AppError::Internal(_) => "INTERNAL_ERROR",
         }

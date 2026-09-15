@@ -119,10 +119,25 @@ fn due(
     ))
 }
 
+/// Eine Wiederholung ohne Datum hat keinen Anker und wird abgelehnt - sonst
+/// entstünde eine Serie, die nie einen nächsten Termin berechnen kann.
+fn recurrence(value: Option<&str>, has_date: bool) -> AppResult<Option<String>> {
+    let Some(raw) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if !has_date {
+        return Err(AppError::validation(
+            "Eine Wiederholung braucht ein Datum als Startpunkt",
+        ));
+    }
+    Ok(Some(crate::domain::recurrence::normalize(raw)?))
+}
+
 pub fn task_draft(mut draft: TaskDraft) -> AppResult<TaskDraft> {
     draft.title = title(&draft.title)?;
     draft.description = description(&draft.description)?;
     let (date, time_value) = due(draft.due_date.as_deref(), draft.due_time.as_deref())?;
+    draft.recurrence = recurrence(draft.recurrence.as_deref(), date.is_some())?;
     draft.due_date = date;
     draft.due_time = time_value;
     if let Some(confidence) = draft.confidence {
@@ -141,6 +156,7 @@ pub fn task_edit(mut edit: TaskEdit) -> AppResult<TaskEdit> {
     edit.title = title(&edit.title)?;
     edit.description = description(&edit.description)?;
     let (date, time_value) = due(edit.due_date.as_deref(), edit.due_time.as_deref())?;
+    edit.recurrence = recurrence(edit.recurrence.as_deref(), date.is_some())?;
     edit.due_date = date;
     edit.due_time = time_value;
     Ok(edit)
@@ -159,6 +175,7 @@ mod tests {
             source_note_id: None,
             ai_generated: false,
             confidence: None,
+            recurrence: None,
         }
     }
 
@@ -188,6 +205,39 @@ mod tests {
     fn rejects_broken_date_formats() {
         assert!(task_draft(draft("X", Some("11.09.2026"), None)).is_err());
         assert!(task_draft(draft("X", Some("2026-13-01"), None)).is_err());
+    }
+
+    #[test]
+    fn recurrence_needs_a_date() {
+        let mut without_date = draft("X", None, None);
+        without_date.recurrence = Some("weekly:1".into());
+        assert!(task_draft(without_date).is_err());
+
+        let mut with_date = draft("X", Some("2026-09-15"), None);
+        with_date.recurrence = Some("weekly:1".into());
+        assert!(task_draft(with_date).is_ok());
+    }
+
+    #[test]
+    fn recurrence_is_stored_canonically() {
+        let mut value = draft("X", Some("2026-09-15"), None);
+        value.recurrence = Some("  WEEKLY:1:fr,mo  ".into());
+        let checked = task_draft(value).expect("gültig");
+        assert_eq!(checked.recurrence.as_deref(), Some("weekly:1:mo,fr"));
+    }
+
+    #[test]
+    fn rejects_broken_recurrence() {
+        let mut value = draft("X", Some("2026-09-15"), None);
+        value.recurrence = Some("jeden-zweiten-dienstag".into());
+        assert!(task_draft(value).is_err());
+    }
+
+    #[test]
+    fn empty_recurrence_means_no_series() {
+        let mut value = draft("X", Some("2026-09-15"), None);
+        value.recurrence = Some("   ".into());
+        assert!(task_draft(value).expect("gültig").recurrence.is_none());
     }
 
     #[test]

@@ -9,9 +9,35 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 ### Geplant
 
 - Code-Signing gegen die SmartScreen-Warnung
-- Automatische Updates über den Tauri-Updater
-- Wiederkehrende Aufgaben
 - Getrennte Profile für Privat und Arbeit
+
+## [0.6.0] - 2026-09-15
+
+### Hinzugefügt
+
+- **Automatische Updates**: Notely sieht beim Start nach einer neueren Version
+  und installiert sie auf Wunsch selbst. Jedes Update wird vor der Installation
+  gegen einen eingebauten Schlüssel geprüft; ein unsigniertes Archiv wird
+  abgelehnt. Der Hinweis erscheint pro Version genau einmal.
+- **Wiederkehrende Aufgaben**: täglich, werktags, wöchentlich an bestimmten
+  Tagen, alle zwei Wochen, monatlich, am letzten Tag im Monat, jährlich — mit
+  optionalem Enddatum. Abhaken erzeugt sofort den nächsten Termin.
+- **Analysequalität**: Notely hält lokal fest, welche Vorschläge unverändert
+  übernommen, korrigiert oder verworfen wurden, und zeigt in den Einstellungen
+  Trefferquote und die jüngsten Fehlgriffe. Abschaltbar, verlässt das Gerät nie.
+
+### Geändert
+
+- Der Vorschlagsdialog übergibt jetzt Entscheidungen statt einer Auswahl. Das
+  Urteil (übernommen/korrigiert/verworfen) leitet das Backend aus dem Vergleich
+  ab — das Frontend kann es nicht behaupten.
+- Die Serie läuft auch beim Abhaken mehrerer Aufgaben auf einmal weiter.
+
+### Sicherheit
+
+- Der private Signaturschlüssel liegt ausschliesslich als GitHub-Secret vor.
+  Ohne ihn bricht der Release-Build ab, statt ein nicht verifizierbares Update
+  zu veröffentlichen.
 
 ## [0.5.0] - 2026-09-14
 

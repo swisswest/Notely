@@ -2,11 +2,12 @@ use tauri::{AppHandle, State};
 
 use crate::ai;
 use crate::db::models::{
-    AnalysisResult, Task, TaskDraft, TaskSuggestion, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED,
-    ANALYSIS_STATUS_OK,
+    AnalysisResult, FeedbackSummary, SuggestionDecision, Task, TaskDraft, TaskSuggestion,
+    ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED, ANALYSIS_STATUS_OK,
 };
 use crate::db::{
-    notes as note_repo, settings as settings_repo, tasks as task_repo, usage as usage_repo,
+    feedback as feedback_repo, notes as note_repo, settings as settings_repo, tasks as task_repo,
+    usage as usage_repo,
 };
 use crate::domain::validation;
 use crate::error::AppResult;
@@ -96,19 +97,31 @@ pub async fn analyze_note(
     })
 }
 
-/// Übernimmt die vom Benutzer bestätigten (und ggf. bearbeiteten) Vorschläge.
+/// Übernimmt die Entscheidungen aus dem Vorschlagsdialog: legt die
+/// bestätigten Vorschläge an und hält fest, was Claude danebengelegen hat.
+///
+/// Das Urteil (übernommen / bearbeitet / verworfen) leitet das Backend aus dem
+/// Vergleich ab. Das Frontend kann es nicht behaupten.
 #[tauri::command]
 pub fn create_tasks_from_suggestions(
     app: AppHandle,
     state: State<'_, AppState>,
     note_id: String,
-    suggestions: Vec<TaskSuggestion>,
+    decisions: Vec<SuggestionDecision>,
 ) -> AppResult<Vec<Task>> {
     let note_id = validation::identifier(&note_id, "Notiz-ID")?;
     let mut created = Vec::new();
 
-    for suggestion in &suggestions {
-        created.push(persist(&state, &note_id, suggestion)?);
+    for decision in &decisions {
+        if let Some(accepted) = &decision.accepted {
+            created.push(persist(&state, &note_id, accepted)?);
+        }
+    }
+
+    // Die Rückmeldung darf das Anlegen nie gefährden - sie ist Statistik,
+    // keine Nutzdaten.
+    if let Err(err) = record_feedback(&state, &note_id, &decisions) {
+        logging::warn("ai", format!("Rückmeldung nicht gespeichert: {err}"));
     }
 
     if !created.is_empty() {
@@ -116,6 +129,50 @@ pub fn create_tasks_from_suggestions(
     }
 
     Ok(created)
+}
+
+fn record_feedback(
+    state: &State<'_, AppState>,
+    note_id: &str,
+    decisions: &[SuggestionDecision],
+) -> AppResult<()> {
+    state.db.with(|conn| {
+        let settings = settings_repo::load(conn)?;
+        if !settings.ai.collect_feedback {
+            return Ok(());
+        }
+
+        let excerpt = note_repo::get(conn, note_id)
+            .map(|note| feedback_repo::excerpt(&note.content))
+            .unwrap_or_default();
+
+        for decision in decisions {
+            feedback_repo::record(
+                conn,
+                Some(note_id),
+                &settings.claude.model,
+                &excerpt,
+                decision.verdict(),
+                &decision.original,
+                decision.accepted.as_ref(),
+            )?;
+        }
+        feedback_repo::prune(conn)?;
+        Ok(())
+    })
+}
+
+/// Auswertung der bisherigen Rückmeldungen. Verlässt das Gerät nicht.
+#[tauri::command]
+pub fn ai_feedback_summary(state: State<'_, AppState>) -> AppResult<FeedbackSummary> {
+    state
+        .db
+        .with(|conn| feedback_repo::summary(conn, feedback_repo::MAX_MISSES))
+}
+
+#[tauri::command]
+pub fn clear_ai_feedback(state: State<'_, AppState>) -> AppResult<usize> {
+    state.db.with(feedback_repo::clear)
 }
 
 fn persist(
@@ -131,6 +188,7 @@ fn persist(
         source_note_id: Some(note_id.to_string()),
         ai_generated: true,
         confidence: Some(suggestion.confidence),
+        recurrence: None,
     })?;
 
     state.db.with(|conn| task_repo::create(conn, &draft))

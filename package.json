@@ -1,7 +1,7 @@
 {
   "name": "notely",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "latest-json": "node scripts/make-latest-json.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

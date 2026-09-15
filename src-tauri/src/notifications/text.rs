@@ -99,6 +99,8 @@ mod tests {
             confidence: Some(0.95),
             snoozed_until: None,
             deleted_at: None,
+            recurrence: None,
+            series_id: None,
         }
     }
 

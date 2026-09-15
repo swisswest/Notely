@@ -57,6 +57,7 @@ mod tests {
                 source_note_id: None,
                 ai_generated: false,
                 confidence: None,
+                recurrence: None,
             },
         )
         .expect("task")

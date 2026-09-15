@@ -90,6 +90,13 @@ pub struct Task {
     /// Gesetzt, solange der Task im Papierkorb liegt.
     #[serde(default)]
     pub deleted_at: Option<String>,
+    /// Wiederholungsregel in Textform, siehe `domain::recurrence`.
+    #[serde(default)]
+    pub recurrence: Option<String>,
+    /// Klammert alle Aufgaben einer Serie. Gesetzt, sobald eine Wiederholung
+    /// existiert - auch bei der ersten Aufgabe.
+    #[serde(default)]
+    pub series_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +115,8 @@ pub struct TaskDraft {
     pub ai_generated: bool,
     #[serde(default)]
     pub confidence: Option<f64>,
+    #[serde(default)]
+    pub recurrence: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +130,8 @@ pub struct TaskEdit {
     pub due_date: Option<String>,
     #[serde(default)]
     pub due_time: Option<String>,
+    #[serde(default)]
+    pub recurrence: Option<String>,
 }
 
 /// Ein von Claude vorgeschlagener Task, bereits validiert und mit lokal
@@ -149,6 +160,99 @@ pub struct AnalysisResult {
     pub needs_confirmation: bool,
 }
 
+/// Was der Benutzer mit einem Vorschlag gemacht hat. Wird aus dem Vergleich
+/// von Vorschlag und Übernahme abgeleitet, nicht vom Frontend behauptet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Verdict {
+    Accepted,
+    Edited,
+    Rejected,
+}
+
+impl Verdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Verdict::Accepted => "accepted",
+            Verdict::Edited => "edited",
+            Verdict::Rejected => "rejected",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "accepted" => Some(Verdict::Accepted),
+            "edited" => Some(Verdict::Edited),
+            "rejected" => Some(Verdict::Rejected),
+            _ => None,
+        }
+    }
+}
+
+/// Wie viel Notiztext bei einer Rückmeldung als Kontext mitgespeichert wird.
+pub const MAX_EXCERPT_CHARS: usize = 200;
+
+/// Eine Entscheidung des Benutzers im Vorschlagsdialog. `accepted` trägt den
+/// Stand, der tatsächlich übernommen werden soll - er kann vom Vorschlag
+/// abweichen.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestionDecision {
+    pub original: TaskSuggestion,
+    #[serde(default)]
+    pub accepted: Option<TaskSuggestion>,
+}
+
+impl SuggestionDecision {
+    pub fn verdict(&self) -> Verdict {
+        match &self.accepted {
+            None => Verdict::Rejected,
+            Some(value) if value == &self.original => Verdict::Accepted,
+            Some(_) => Verdict::Edited,
+        }
+    }
+}
+
+/// Ein abgelegter Datensatz für die Qualitätsauswertung. Bleibt vollständig
+/// lokal - es gibt keinen Weg, der ihn irgendwohin sendet.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackEntry {
+    pub id: i64,
+    pub created_at: String,
+    pub note_id: Option<String>,
+    pub model: String,
+    pub verdict: Verdict,
+    pub note_excerpt: String,
+    pub suggested: TaskSuggestion,
+    pub corrected: Option<TaskSuggestion>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackCounts {
+    pub accepted: u32,
+    pub edited: u32,
+    pub rejected: u32,
+}
+
+impl FeedbackCounts {
+    pub fn total(&self) -> u32 {
+        self.accepted + self.edited + self.rejected
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackSummary {
+    /// Alles, was jemals erfasst wurde.
+    pub total: FeedbackCounts,
+    /// Nur die letzten 30 Tage - zeigt, ob eine Prompt-Änderung gewirkt hat.
+    pub recent: FeedbackCounts,
+    /// Die jüngsten Fälle, bei denen der Vorschlag nicht gepasst hat.
+    pub misses: Vec<FeedbackEntry>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NotificationKind {
@@ -171,7 +275,44 @@ impl NotificationKind {
 
 #[cfg(test)]
 mod tests {
-    use super::FolderFilter;
+    use super::{FolderFilter, SuggestionDecision, TaskSuggestion, Verdict};
+
+    fn suggestion(title: &str) -> TaskSuggestion {
+        TaskSuggestion {
+            title: title.into(),
+            description: String::new(),
+            due_date: Some("2026-09-16".into()),
+            due_time: Some("12:00".into()),
+            confidence: 0.9,
+            daypart_key: Some("noon".into()),
+            in_past: false,
+        }
+    }
+
+    #[test]
+    fn verdict_follows_from_the_comparison() {
+        let original = suggestion("Rechnung zahlen");
+
+        let rejected = SuggestionDecision {
+            original: original.clone(),
+            accepted: None,
+        };
+        assert_eq!(rejected.verdict(), Verdict::Rejected);
+
+        let untouched = SuggestionDecision {
+            original: original.clone(),
+            accepted: Some(original.clone()),
+        };
+        assert_eq!(untouched.verdict(), Verdict::Accepted);
+
+        let mut changed = original.clone();
+        changed.due_time = Some("09:00".into());
+        let edited = SuggestionDecision {
+            original,
+            accepted: Some(changed),
+        };
+        assert_eq!(edited.verdict(), Verdict::Edited);
+    }
 
     #[test]
     fn folder_filter_reserves_all_and_none() {

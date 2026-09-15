@@ -29,6 +29,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec![startup::MINIMIZED_FLAG]),
@@ -72,6 +73,13 @@ pub fn run() {
 
             if let Err(err) = quick::apply_shortcut(&handle, &settings.quick_capture) {
                 logging::warn("app", format!("Schnellerfassung nicht aktiv: {err}"));
+            }
+
+            if settings.updates.check_on_start {
+                let update_handle = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    announce_update(&update_handle).await;
+                });
             }
 
             if backup::due(&settings, chrono::Local::now()) {
@@ -187,9 +195,55 @@ pub fn run() {
             commands::review::review_status,
             commands::review::complete_review,
             commands::backup::import_markdown,
+            commands::ai::ai_feedback_summary,
+            commands::ai::clear_ai_feedback,
+            commands::update::check_for_update,
+            commands::update::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");
+}
+
+/// Sieht beim Start still nach einer neueren Version. Gemeldet wird jede
+/// Version nur einmal - ein Hinweis, der bei jedem Start wiederkommt, wird
+/// nach zwei Tagen ignoriert und ist damit wertlos.
+///
+/// Scheitert der Check (kein Internet, GitHub nicht erreichbar), passiert
+/// nichts. Der Benutzer hat nicht danach gefragt.
+async fn announce_update(app: &tauri::AppHandle) {
+    let info = match commands::update::check(app).await {
+        Ok(info) => info,
+        Err(err) => {
+            logging::info("update", format!("Start-Pruefung uebersprungen: {err}"));
+            return;
+        }
+    };
+
+    let Some(version) = info.version.clone().filter(|_| info.available) else {
+        return;
+    };
+
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+
+    let already_seen = state.db.with(|conn| {
+        let mut settings = settings_repo::load(conn)?;
+        if settings.updates.last_seen_version.as_deref() == Some(version.as_str()) {
+            return Ok(true);
+        }
+        settings.updates.last_seen_version = Some(version.clone());
+        settings_repo::save(conn, &settings)?;
+        Ok(false)
+    });
+
+    match already_seen {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(err) => logging::warn("update", format!("Version nicht vermerkt: {err}")),
+    }
+
+    window::emit(app, crate::state::events::UPDATE_AVAILABLE, info);
 }
 
 /// Schreibt beim Start eine Sicherung, räumt alte auf und merkt sich den

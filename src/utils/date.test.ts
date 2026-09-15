@@ -28,6 +28,8 @@ function task(overrides: Partial<Task>): Task {
     confidence: null,
     snoozedUntil: null,
     deletedAt: null,
+    recurrence: null,
+    seriesId: null,
     ...overrides,
   };
 }

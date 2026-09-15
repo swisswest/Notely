@@ -426,8 +426,8 @@ fn merge(conn: &Connection, payload: &BackupPayload) -> AppResult<ImportSummary>
         conn.execute(
             "INSERT INTO tasks (id, title, description, created_at, updated_at, due_date, due_time,
                                 completed, completed_at, source_note_id, ai_generated, confidence,
-                                snoozed_until)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                                snoozed_until, recurrence, series_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 task.id,
                 task.title,
@@ -441,7 +441,9 @@ fn merge(conn: &Connection, payload: &BackupPayload) -> AppResult<ImportSummary>
                 source,
                 i64::from(task.ai_generated),
                 task.confidence,
-                task.snoozed_until
+                task.snoozed_until,
+                task.recurrence,
+                task.series_id
             ],
         )?;
         summary.tasks += 1;
@@ -543,6 +545,7 @@ mod tests {
                     source_note_id: Some(note.id.clone()),
                     ai_generated: true,
                     confidence: Some(0.9),
+                    recurrence: None,
                 },
             )?;
             Ok(())

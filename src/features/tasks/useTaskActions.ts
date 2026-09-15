@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { api } from '@/lib/ipc';
 import { openTaskDialog, run, showToast } from '@/lib/store';
 import type { Task } from '@/types';
+import { formatDayLabel, toIsoDate } from '@/utils/date';
 
 export interface TaskActions {
   startCreate: () => void;
@@ -15,7 +16,21 @@ export interface TaskActions {
 /** Gemeinsame Task-Aktionen für alle Listenansichten. */
 export function useTaskActions(): TaskActions {
   const toggle = useCallback((task: Task) => {
-    void run(() => api.tasks.setCompleted(task.id, !task.completed));
+    void run(async () => {
+      const result = await api.tasks.setCompleted(task.id, !task.completed);
+      // Bei einer Serie entsteht sofort der nächste Termin. Ohne Hinweis
+      // wirkt es so, als wäre die Aufgabe einfach wieder aufgetaucht.
+      if (result.followUp?.dueDate) {
+        showToast({
+          kind: 'info',
+          message: `Nächster Termin: ${formatDayLabel(
+            result.followUp.dueDate,
+            toIsoDate(new Date()),
+          )}`,
+        });
+      }
+      return result;
+    });
   }, []);
 
   const remove = useCallback((task: Task) => {

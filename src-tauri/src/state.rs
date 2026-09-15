@@ -21,4 +21,6 @@ pub mod events {
     pub const QUICK_OPENED: &str = "notely://quick-opened";
     /// Vorschläge aus der Schnellerfassung, die im Hauptfenster zu bestätigen sind.
     pub const SUGGESTIONS: &str = "notely://suggestions";
+    /// Beim Start wurde eine neuere Version gefunden.
+    pub const UPDATE_AVAILABLE: &str = "notely://update-available";
 }

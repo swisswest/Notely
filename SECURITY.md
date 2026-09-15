@@ -26,6 +26,16 @@ Datenbank. Das Modell schreibt nie direkt in die Datenbank.
 explizit an, Anweisungen innerhalb einer Notiz nicht auszuführen, sondern
 höchstens als Aufgabe zu erfassen.
 
+**Updates** werden nur installiert, wenn die minisign-Signatur des Archivs zum
+öffentlichen Schlüssel in `tauri.conf.json` passt. Der private Schlüssel liegt
+ausschliesslich als GitHub-Secret vor und taucht in keinem Build-Log auf. Der
+Katalog `latest.json` hängt als Asset am veröffentlichten Release — ein Entwurf
+löst nie ein Update aus.
+
+**Rückmeldungen zur Analysequalität** bleiben in der lokalen Datenbank. Es gibt
+keinen Command, der sie irgendwohin sendet; die Erfassung lässt sich in den
+Einstellungen abschalten und der Verlauf jederzeit löschen.
+
 **Datenbank:** alle Zugriffe über Parameter-Binding, auch die Suche mit
 escapten LIKE-Wildcards. Das Frontend kann kein SQL absetzen — es kennt nur
 typisierte Commands.
@@ -41,5 +51,8 @@ Asset-Protokoll. Die CSP erlaubt ausschliesslich eigene Ressourcen und IPC.
 - **Die lokale Datenbank ist nicht verschlüsselt.** Wer Zugriff auf das
   Windows-Benutzerprofil hat, kann die Notizen lesen. Für vertrauliche Inhalte
   gehört zusätzlich eine Festplattenverschlüsselung wie BitLocker dazu.
+- **Die Auswertung speichert einen Notizausschnitt** (die ersten 200 Zeichen)
+  als Kontext. Wer das nicht möchte, schaltet die Erfassung in den Einstellungen
+  ab und löscht den Verlauf.
 - **Sicherungen sind Klartext-JSON.** Sie enthalten keine Secrets, aber alle
   Notizen — der Zielordner sollte entsprechend gewählt werden.

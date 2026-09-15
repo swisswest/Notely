@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Minimale Rechte fuer das Hauptfenster. Notifications, Autostart und Datenbank laufen ausschliesslich ueber eigene Rust-Commands.",
-  "windows": ["main", "quick"],
+  "windows": [
+    "main",
+    "quick"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-show",
@@ -11,6 +14,7 @@
     "core:window:allow-minimize",
     "core:window:allow-close",
     "core:event:allow-listen",
-    "core:event:allow-unlisten"
+    "core:event:allow-unlisten",
+    "updater:default"
   ]
 }

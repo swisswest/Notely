@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button, Checkbox, Confidence, Dialog, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
 import { run } from '@/lib/store';
-import type { AnalysisResult, TaskSuggestion } from '@/types';
+import type { AnalysisResult, SuggestionDecision, TaskSuggestion } from '@/types';
 
 interface Row extends TaskSuggestion {
   selected: boolean;
@@ -27,26 +27,31 @@ export function SuggestionDialog({ result, onClose }: SuggestionDialogProps) {
 
   const selectedCount = rows.filter((row) => row.selected).length;
 
-  const submit = async () => {
-    const chosen: TaskSuggestion[] = rows
-      .filter((row) => row.selected && row.title.trim())
-      .map((row) => ({
-        title: row.title,
-        description: row.description,
-        dueDate: row.dueDate,
-        dueTime: row.dueTime,
-        confidence: row.confidence,
-        daypartKey: row.daypartKey,
-        inPast: row.inPast,
-      }));
+  const submit = async (takeAll: boolean) => {
+    // Auch die verworfenen Vorschläge gehen mit: aus ihnen entsteht die
+    // Qualitätsauswertung. Angelegt wird nur, was `accepted` trägt.
+    const decisions: SuggestionDecision[] = result.suggestions.map((original, index) => {
+      const row = rows[index];
+      const accepted: TaskSuggestion | null =
+        takeAll && row?.selected && row.title.trim()
+          ? {
+              title: row.title,
+              description: row.description,
+              dueDate: row.dueDate,
+              dueTime: row.dueTime,
+              confidence: row.confidence,
+              daypartKey: row.daypartKey,
+              inPast: row.inPast,
+            }
+          : null;
 
-    if (chosen.length === 0) {
-      onClose();
-      return;
-    }
+      return { original, accepted };
+    });
 
-    const created = await run(() => api.ai.createFromSuggestions(result.noteId, chosen), {
-      success: `${chosen.length} Task(s) erstellt`,
+    const accepted = decisions.filter((decision) => decision.accepted !== null).length;
+
+    const created = await run(() => api.ai.createFromSuggestions(result.noteId, decisions), {
+      success: accepted > 0 ? `${accepted} Task(s) erstellt` : 'Vorschläge verworfen',
     });
     if (created) onClose();
   };
@@ -58,10 +63,14 @@ export function SuggestionDialog({ result, onClose }: SuggestionDialogProps) {
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            Verwerfen
+          <Button variant="ghost" onClick={() => void submit(false)}>
+            Alle verwerfen
           </Button>
-          <Button variant="primary" onClick={() => void submit()} disabled={selectedCount === 0}>
+          <Button
+            variant="primary"
+            onClick={() => void submit(true)}
+            disabled={selectedCount === 0}
+          >
             {selectedCount} Task(s) erstellen
           </Button>
         </>
@@ -102,6 +111,11 @@ export function SuggestionDialog({ result, onClose }: SuggestionDialogProps) {
           </div>
         </div>
       ))}
+
+      <p className="field__hint" style={{ marginTop: 12 }}>
+        Was du hier änderst oder verwirfst, bleibt lokal gespeichert und landet in der
+        Qualitätsauswertung in den Einstellungen.
+      </p>
 
       {result.rejected.length > 0 ? (
         <p className="field__hint" style={{ marginTop: 12 }}>

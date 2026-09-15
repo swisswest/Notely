@@ -5,7 +5,9 @@ import type {
   AppSettings,
   AppStatus,
   BackupInfo,
+  CompletionResult,
   ConnectionTest,
+  FeedbackSummary,
   Folder,
   ImportSummary,
   Label,
@@ -15,11 +17,12 @@ import type {
   QuickResult,
   ReviewStatus,
   SearchResults,
+  SuggestionDecision,
   Task,
   TaskDraft,
   TaskEdit,
-  TaskSuggestion,
   TrashContents,
+  UpdateInfo,
   UsageSummary,
 } from '@/types';
 
@@ -33,6 +36,7 @@ export type ErrorCode =
   | 'NETWORK_ERROR'
   | 'API_ERROR'
   | 'INVALID_AI_RESPONSE'
+  | 'UPDATE_UNAVAILABLE'
   | 'SECRET_STORE_ERROR'
   | 'INTERNAL_ERROR'
   | 'UNKNOWN';
@@ -108,7 +112,7 @@ export const api = {
     update: (edit: TaskEdit) => call<Task>('update_task', { edit }),
     remove: (id: string) => call<void>('delete_task', { id }),
     setCompleted: (id: string, completed: boolean) =>
-      call<Task>('set_task_completed', { id, completed }),
+      call<CompletionResult>('set_task_completed', { id, completed }),
     snooze: (id: string, minutes?: number) =>
       call<Task>('snooze_task', { id, minutes: minutes ?? null }),
     clearSnooze: (id: string) => call<Task>('clear_snooze', { id }),
@@ -130,8 +134,14 @@ export const api = {
     call<SearchResults>('search', { term, limit: limit ?? null }),
   ai: {
     analyze: (noteId: string) => call<AnalysisResult>('analyze_note', { noteId }),
-    createFromSuggestions: (noteId: string, suggestions: TaskSuggestion[]) =>
-      call<Task[]>('create_tasks_from_suggestions', { noteId, suggestions }),
+    createFromSuggestions: (noteId: string, decisions: SuggestionDecision[]) =>
+      call<Task[]>('create_tasks_from_suggestions', { noteId, decisions }),
+    feedback: () => call<FeedbackSummary>('ai_feedback_summary'),
+    clearFeedback: () => call<number>('clear_ai_feedback'),
+  },
+  updates: {
+    check: () => call<UpdateInfo>('check_for_update'),
+    install: () => call<void>('install_update'),
   },
   settings: {
     status: () => call<AppStatus>('get_status'),
@@ -179,6 +189,7 @@ export const EVENTS = {
   notificationsBlocked: 'notely://notifications-blocked',
   quickOpened: 'notely://quick-opened',
   suggestions: 'notely://suggestions',
+  updateAvailable: 'notely://update-available',
 } as const;
 
 /** Benutzerlesbare Meldung je Fehlercode - technische Details bleiben im Log. */
@@ -200,6 +211,8 @@ export function describeError(error: unknown): string {
       return 'Keine Verbindung zu Claude. Die Notiz wurde gespeichert und kann später analysiert werden.';
     case 'INVALID_AI_RESPONSE':
       return 'Claude hat keine verwertbare Antwort geliefert. Die Notiz bleibt unverändert.';
+    case 'UPDATE_UNAVAILABLE':
+      return 'Im Repository liegt noch kein Update-Katalog. Der erste veröffentlichte Release mit der neuen Pipeline legt ihn an.';
     case 'SECRET_STORE_ERROR':
       return 'Der Windows Credential Manager ist nicht erreichbar.';
     case 'DB_ERROR':

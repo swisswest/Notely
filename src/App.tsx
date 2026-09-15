@@ -35,7 +35,7 @@ import { TodayView } from '@/features/today/TodayView';
 import { TrashView } from '@/features/trash/TrashView';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { useTheme } from '@/hooks/useTheme';
-import type { AnalysisResult, ViewId } from '@/types';
+import type { AnalysisResult, UpdateInfo, ViewId } from '@/types';
 
 const TITLES: Record<ViewId, string> = {
   today: 'Heute',
@@ -93,6 +93,13 @@ export function App() {
       }),
       listen<AnalysisResult>(EVENTS.suggestions, (event) => {
         openSuggestionDialog(event.payload);
+      }),
+      listen<UpdateInfo>(EVENTS.updateAvailable, (event) => {
+        if (!event.payload.version) return;
+        showToast({
+          kind: 'info',
+          message: `Version ${event.payload.version} ist verfügbar - Einstellungen, Updates.`,
+        });
       }),
       listen<string>(EVENTS.notificationsBlocked, () => {
         showToast({
@@ -162,6 +169,7 @@ export function App() {
       { id: 'new-task', label: 'Neuen Task erstellen', hint: 'Strg+T', run: () => openTaskDialog(null) },
       { id: 'new-note', label: 'Neue Notiz', hint: 'Strg+N', run: goToNotes },
       { id: 'settings', label: 'Einstellungen öffnen', run: () => setView('settings') },
+      { id: 'updates', label: 'Nach Updates suchen', run: () => setView('settings') },
       { id: 'trash', label: 'Papierkorb anzeigen', run: () => setView('trash') },
       { id: 'review', label: 'Tagesabschluss öffnen', run: () => void checkReview(true) },
       { id: 'hide', label: 'Fenster in den Tray legen', run: () => void api.system.hideWindow() },

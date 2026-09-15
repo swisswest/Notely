@@ -53,7 +53,11 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
   garantiert ohne Dubletten.
 - **Schnellerfassung** per systemweitem Kürzel (`Ctrl+Alt+N`): tippen, Enter, weg.
 - **Tagesabschluss** am Abend: was offen blieb, abhaken oder auf morgen schieben.
+- **Wiederkehrende Aufgaben**: täglich, werktags, an bestimmten Wochentagen,
+  monatlich, am Monatsletzten, jährlich — mit optionalem Enddatum. Der nächste
+  Termin entsteht beim Abhaken.
 - **Papierkorb** mit 30 Tagen Schonfrist und automatische tägliche Sicherung.
+- **Automatische Updates**: signiert, prüfbar, auf Wunsch abschaltbar.
 - **Tray, Autostart** und Start im Hintergrund.
 - Dark und Light Mode, durchgehende Tastaturbedienung.
 
@@ -132,10 +136,15 @@ src-tauri/src/
 | Zeitauflösung | Modell liefert Datum + Tageszeit-**Schlüssel**, die App setzt die Uhrzeit | Deterministisch und testbar; Änderungen an den Tageszeiten wirken sofort |
 | Löschen | Soft Delete mit Papierkorb | Ein Restore, der überschreiben kann, ist im Panikmoment gefährlicher als das Problem |
 | Frontend-State | `useSyncExternalStore` statt Redux | Eine Abhängigkeit weniger, rund 60 Zeilen, vollständig typisiert |
+| Wiederholungen | eigene Kurzregel statt voller RFC-5545-RRULE | Deckt ab, was eine Aufgabenliste braucht, und passt in einen prüfbaren Parser mit Tests. Kein Rattenschwanz aus Sonderfällen |
+| Serien | nächster Termin entsteht beim Abhaken | Keine 52 Zeilen pro Jahr in der Datenbank, kein unbrauchbarer Papierkorb |
+| Updates | Tauri-Updater gegen GitHub Releases | Der Katalog liegt als Asset am Release; Entwürfe lösen nichts aus. Jedes Archiv ist signiert und wird vor der Installation geprüft |
 
 ## Sicherheit
 
 - Der API-Key liegt im Windows Credential Manager und wird im UI nur maskiert angezeigt.
+- Updates werden nur installiert, wenn die Signatur zum eingebauten öffentlichen
+  Schlüssel passt. Der private Schlüssel liegt ausschliesslich als GitHub-Secret vor.
 - Logs werden vor dem Schreiben gefiltert — alles, was mit `sk-` beginnt, wird ersetzt.
 - **Jede Claude-Antwort gilt als nicht vertrauenswürdig.** Struktur, Datum, Uhrzeit,
   Tageszeit-Schlüssel, Confidence und Textlänge werden geprüft, Steuerzeichen entfernt,
@@ -166,9 +175,9 @@ Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 
 ## Roadmap
 
+- [x] Automatische Updates über den Tauri-Updater
+- [x] Wiederkehrende Aufgaben
 - [ ] Code-Signing, damit die SmartScreen-Warnung verschwindet
-- [ ] Automatische Updates über den Tauri-Updater
-- [ ] Wiederkehrende Aufgaben
 - [ ] Getrennte Profile für Privat und Arbeit
 
 ## Mitmachen
