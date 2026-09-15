@@ -1,0 +1,64 @@
+name: Website
+
+# Baut die Download-Seite neu, sobald sich an Releases, Changelog oder Website etwas aendert.
+# Einmalig noetig: Settings -> Pages -> Source: "GitHub Actions".
+on:
+  release:
+    types: [published, edited, deleted, prereleased, released]
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+  # Sicherheitsnetz, falls ein Event verloren geht
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Website bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Node einrichten
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Pages konfigurieren
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Website bauen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          STRICT: '1'
+        run: node website/build.mjs
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: website/dist
+
+  deploy:
+    name: Veroeffentlichen
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
