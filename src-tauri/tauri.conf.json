@@ -85,7 +85,7 @@
       "windows": {
         "installMode": "passive"
       },
-      "pubkey": "HIER_DEN_OEFFENTLICHEN_SCHLUESSEL_EINSETZEN"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5NzVEREQ4NkMxODdGQzkKUldUSmZ4aHMyTjExV1hybzdGWlA0SWxGNGordWIybklIUjZET3VrdmFRR1d3T2prZGEwc1FJSmsK"
     }
   }
 }
