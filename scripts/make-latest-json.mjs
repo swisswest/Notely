@@ -1,4 +1,4 @@
-/**
+**
  * Erzeugt die `latest.json`, die der Tauri-Updater abfragt.
  *
  * Tauri legt beim Release-Build ein signiertes Archiv und die zugehoerige
@@ -32,23 +32,39 @@ function repository() {
   return process.env.GITHUB_REPOSITORY || 'swisswest/Notely';
 }
 
-function findArchive() {
+/**
+ * Sucht das Artefakt, auf das `latest.json` zeigt.
+ *
+ * Tauri 2 signiert den NSIS-Installer direkt und legt die `.sig` daneben.
+ * Nur mit `createUpdaterArtifacts: "v1Compatible"` entsteht zusaetzlich das
+ * alte `.nsis.zip`. Beide Formen werden akzeptiert, das ZIP hat Vorrang,
+ * weil aeltere Clients nur damit umgehen koennen.
+ */
+function findArtifact() {
   let entries;
   try {
     entries = readdirSync(BUNDLE_DIR);
   } catch {
-    fail(`${BUNDLE_DIR} existiert nicht - wurde mit createUpdaterArtifacts gebaut?`);
+    fail(`${BUNDLE_DIR} existiert nicht - wurde ueberhaupt gebaut?`);
   }
 
-  const archive = entries.find((name) => name.endsWith('.nsis.zip'));
-  if (!archive) fail(`kein .nsis.zip in ${BUNDLE_DIR}`);
+  const candidates = [
+    entries.find((name) => name.endsWith('.nsis.zip')),
+    entries.find((name) => name.endsWith('-setup.exe')),
+  ].filter(Boolean);
 
-  const signature = `${archive}.sig`;
-  if (!entries.includes(signature)) {
-    fail(`${signature} fehlt - ohne Signatur verweigert der Updater die Installation`);
+  for (const artifact of candidates) {
+    if (entries.includes(`${artifact}.sig`)) {
+      return { artifact, signature: `${artifact}.sig` };
+    }
   }
 
-  return { archive, signature };
+  // Die Verzeichnisliste mitgeben - sonst raet man beim naechsten Mal wieder.
+  fail(
+    `kein signiertes Artefakt in ${BUNDLE_DIR}.\n` +
+      `Gefunden: ${entries.join(', ') || '(leer)'}\n` +
+      'Ohne .sig-Datei fehlt createUpdaterArtifacts oder der private Schluessel.',
+  );
 }
 
 /** Holt den Abschnitt der aktuellen Version aus dem Changelog. */
@@ -70,7 +86,7 @@ function notes(target) {
 }
 
 const target = version();
-const { archive, signature } = findArchive();
+const { artifact, signature } = findArtifact();
 
 const catalog = {
   version: target,
@@ -79,10 +95,10 @@ const catalog = {
   platforms: {
     [PLATFORM]: {
       signature: readFileSync(join(BUNDLE_DIR, signature), 'utf8').trim(),
-      url: `https://github.com/${repository()}/releases/download/v${target}/${archive}`,
+      url: `https://github.com/${repository()}/releases/download/v${target}/${artifact}`,
     },
   },
 };
 
 writeFileSync(OUTPUT, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
-console.log(`latest.json: ${target} -> ${archive}`);
+console.log(`latest.json: ${target} -> ${artifact}`);
