@@ -11,15 +11,17 @@
     onScroll();
   }
 
-  // SHA-256 kopieren
+  // In die Zwischenablage kopieren. Der Bestaetigungstext kommt aus
+  // data-copied, damit derselbe Knopf fuer Pruefsummen und Feed-Adresse taugt.
   document.addEventListener('click', function (ev) {
     var btn = ev.target.closest && ev.target.closest('[data-copy]');
     if (!btn || !navigator.clipboard) return;
     navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function () {
       var label = btn.querySelector('span');
       var prev = label ? label.textContent : '';
+      var done = btn.getAttribute('data-copied') || 'Kopiert';
       btn.classList.add('copied');
-      if (label) label.textContent = 'Prüfsumme kopiert';
+      if (label) label.textContent = done;
       setTimeout(function () { btn.classList.remove('copied'); if (label) label.textContent = prev; }, 1600);
     });
   });

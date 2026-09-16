@@ -569,13 +569,18 @@ function renderVersions({ entries, latest }) {
     <p>Jede Version mit Installer, SHA-256-Prüfsumme und Änderungen. Für den Alltag empfiehlt sich immer die aktuelle Version.</p>
     <div class="page-head__actions">
       ${latest ? `<a class="btn btn--primary" href="${esc(latest.asset.url)}">${icon.windows(15)}Aktuelle Version ${esc(latest.version)} laden</a>` : ''}
-      <a class="btn btn--secondary" href="${GH}/releases.atom" rel="noopener">Release-Feed abonnieren</a>
+      <a class="btn btn--secondary" href="${GH}/releases" rel="noopener">Releases auf GitHub</a>
     </div>
   </div>
 </section>
 <div class="container rel-layout">
   <nav class="toc" aria-label="Versionen"><div class="toc__label">Versionen</div>${toc}</nav>
   <div>${entries.length ? items : '<div class="empty">Noch keine Versionen veröffentlicht.</div>'}</div>
+</div>
+<div class="container">
+  <p style="margin:28px 0 0;font-size:13px;opacity:.6">Mit einem Feed-Reader kannst du neue Versionen
+  auch <a href="${GH}/releases.atom" rel="noopener" style="color:var(--accent)">als Atom-Feed abonnieren</a>.
+  Im Browser geöffnet zeigt der Feed nur XML – das ist normal, er ist für Programme gedacht.</p>
 </div>`;
 
   return layout({

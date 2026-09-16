@@ -386,3 +386,15 @@ code, kbd { font-family: var(--mono); font-size: 0.875em; }
 .spinner { width: 18px; height: 18px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+/* Benachrichtigung bei neuen Versionen */
+.subscribe { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border); }
+.subscribe h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+.subscribe > p { font-size: 15px; color: var(--text-muted); max-width: 62ch; }
+.subscribe__ways { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 24px; }
+.subscribe__way { padding: 18px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-subtle); }
+.subscribe__way h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.subscribe__way p { font-size: 14px; color: var(--text-muted); margin-bottom: 14px; }
+.subscribe__foot { margin-top: 20px; font-size: 13px; color: var(--text-faint); }
+.subscribe__foot code { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+@media (max-width: 720px) { .subscribe__ways { grid-template-columns: 1fr; } }
