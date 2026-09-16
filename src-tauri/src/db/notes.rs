@@ -33,7 +33,22 @@ pub fn create(conn: &Connection, content: &str, folder_id: Option<&str>) -> AppR
     get(conn, &id)
 }
 
+/// Schreibt neuen Inhalt und legt den bisherigen Stand als Version ab.
+///
+/// Unveraenderter Text wird nicht gespeichert: sonst wuerde jedes Autosave
+/// das Aenderungsdatum verschieben und eine Version erzeugen, obwohl nichts
+/// passiert ist.
 pub fn update_content(conn: &Connection, id: &str, content: &str) -> AppResult<Note> {
+    let previous = get(conn, id)?;
+    if previous.deleted_at.is_some() {
+        return Err(AppError::NotFound(format!("Notiz {id}")));
+    }
+    if previous.content == content {
+        return Ok(previous);
+    }
+
+    super::versions::record(conn, id, &previous.content)?;
+
     let changed = conn.execute(
         "UPDATE notes SET content = ?2, updated_at = ?3 WHERE id = ?1 AND deleted_at IS NULL",
         params![id, content, now_utc()],
@@ -168,6 +183,24 @@ pub fn list_deleted(conn: &Connection, limit: u32) -> AppResult<Vec<Note>> {
     let sql = format!(
         "SELECT {COLUMNS} FROM notes WHERE deleted_at IS NOT NULL
          ORDER BY deleted_at DESC LIMIT ?1"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut result = Vec::new();
+    for row in stmt.query_map(params![limit.clamp(1, 1000)], map)? {
+        result.push(row?);
+    }
+    attach_labels(conn, &mut result)?;
+    Ok(result)
+}
+
+/// Notizen ohne erfolgreiche Analyse: nie analysiert oder zuletzt
+/// fehlgeschlagen. Grundlage der Inbox.
+pub fn needing_attention(conn: &Connection, limit: u32) -> AppResult<Vec<Note>> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM notes
+          WHERE deleted_at IS NULL
+            AND (last_analysis_status IS NULL OR last_analysis_status = 'failed')
+          ORDER BY updated_at DESC LIMIT ?1"
     );
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();

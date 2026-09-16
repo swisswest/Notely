@@ -336,6 +336,106 @@ pub fn safe_file_name(name: &str) -> AppResult<&str> {
 
 /// Führt Daten aus einer Sicherung mit dem Bestand zusammen. Vorhandene
 /// Einträge bleiben unangetastet - der Import kann nichts überschreiben.
+/// Ergebnis einer Pruefung. Bewusst ohne Datenbankzugriff - eine kaputte
+/// Sicherung soll man erkennen koennen, *bevor* man sie anfasst.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupCheck {
+    pub file_name: String,
+    pub ok: bool,
+    pub message: String,
+    pub app_version: String,
+    pub exported_at: String,
+    pub notes: usize,
+    pub tasks: usize,
+    pub folders: usize,
+    pub labels: usize,
+    /// Fingerabdruck der Datei, um zwei Sicherungen vergleichen zu koennen.
+    pub sha256: String,
+}
+
+fn failed_check(file_name: &str, message: impl Into<String>, sha256: String) -> BackupCheck {
+    BackupCheck {
+        file_name: file_name.to_string(),
+        ok: false,
+        message: message.into(),
+        app_version: String::new(),
+        exported_at: String::new(),
+        notes: 0,
+        tasks: 0,
+        folders: 0,
+        labels: 0,
+        sha256,
+    }
+}
+
+/// Liest eine Sicherung und meldet, was drinsteht - ohne irgendetwas zu
+/// aendern. Ein Fehler in der Datei ist hier ein Ergebnis, kein Absturz.
+pub fn verify(path: &Path) -> AppResult<BackupCheck> {
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let raw = fs::read(path)
+        .map_err(|err| AppError::Internal(format!("Sicherung nicht lesbar: {err}")))?;
+    let sha256 = digest(&raw);
+
+    let text = match String::from_utf8(raw) {
+        Ok(text) => text,
+        Err(_) => {
+            return Ok(failed_check(
+                &file_name,
+                "Die Datei ist kein gültiger Text - vermutlich beschädigt.",
+                sha256,
+            ))
+        }
+    };
+
+    let payload: BackupPayload = match serde_json::from_str(&text) {
+        Ok(payload) => payload,
+        Err(err) => {
+            return Ok(failed_check(
+                &file_name,
+                format!("Die Datei liess sich nicht lesen: {err}"),
+                sha256,
+            ))
+        }
+    };
+
+    if payload.schema_version > SCHEMA_VERSION {
+        return Ok(failed_check(
+            &file_name,
+            "Die Sicherung stammt aus einer neueren Version von Notely.",
+            sha256,
+        ));
+    }
+
+    Ok(BackupCheck {
+        file_name,
+        ok: true,
+        message: "Die Sicherung ist lesbar und vollständig.".to_string(),
+        app_version: payload.app_version,
+        exported_at: payload.exported_at,
+        notes: payload.notes.len(),
+        tasks: payload.tasks.len(),
+        folders: payload.folders.len(),
+        labels: payload.labels.len(),
+        sha256,
+    })
+}
+
+fn digest(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 pub fn import(db: &Db, path: &Path) -> AppResult<ImportSummary> {
     let raw = fs::read_to_string(path)
         .map_err(|err| AppError::Internal(format!("Sicherung nicht lesbar: {err}")))?;
@@ -546,6 +646,7 @@ mod tests {
                     ai_generated: true,
                     confidence: Some(0.9),
                     recurrence: None,
+                    priority: Default::default(),
                 },
             )?;
             Ok(())
@@ -588,6 +689,44 @@ mod tests {
                 Ok(())
             })
             .expect("check");
+    }
+
+    /// Eigener Ordner je Test, damit parallele Laeufe sich nicht stoeren.
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("notely-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    #[test]
+    fn verify_reads_a_backup_without_touching_the_database() {
+        let db = seeded_db();
+        let dir = scratch_dir("verify-ok");
+        let info = write(&db, "0.7.0", &dir).expect("write");
+
+        let check = verify(&dir.join(&info.file_name)).expect("verify");
+        assert!(check.ok, "{}", check.message);
+        assert_eq!(check.notes, 1);
+        assert_eq!(check.tasks, 1);
+        assert_eq!(check.app_version, "0.7.0");
+        assert_eq!(check.sha256.len(), 64);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_a_broken_file_instead_of_failing() {
+        let dir = scratch_dir("verify-broken");
+        let path = dir.join("kaputt.json");
+        fs::write(&path, "{ das ist kein json").expect("write");
+
+        let check = verify(&path).expect("verify");
+        assert!(!check.ok);
+        assert!(check.message.contains("lesen"));
+        assert_eq!(check.sha256.len(), 64);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

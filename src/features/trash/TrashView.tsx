@@ -64,7 +64,7 @@ export function TrashView() {
       {trash.tasks.length > 0 ? (
         <section className="section">
           <h3 className="section__title">
-            Tasks<span className="section__count">{trash.tasks.length}</span>
+            Aufgaben<span className="section__count">{trash.tasks.length}</span>
           </h3>
           {trash.tasks.map((task) => (
             <div className="task-row" key={task.id}>

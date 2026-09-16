@@ -103,20 +103,57 @@ pub fn set_for_note(conn: &Connection, note_id: &str, label_ids: &[String]) -> A
     Ok(())
 }
 
+/// Ersetzt die Labels einer Aufgabe vollstaendig.
+pub fn set_for_task(conn: &Connection, task_id: &str, label_ids: &[String]) -> AppResult<()> {
+    if label_ids.len() > MAX_LABELS_PER_NOTE {
+        return Err(AppError::validation(format!(
+            "Maximal {MAX_LABELS_PER_NOTE} Labels pro Aufgabe"
+        )));
+    }
+
+    conn.execute(
+        "DELETE FROM task_labels WHERE task_id = ?1",
+        params![task_id],
+    )?;
+    for label_id in label_ids {
+        // Unbekannte Label-IDs werden abgewiesen, nicht still ignoriert.
+        get(conn, label_id)?;
+        conn.execute(
+            "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+            params![task_id, label_id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Alle Zuordnungen auf einmal - die Tabelle ist klein, das spart N Queries.
 pub fn by_note(conn: &Connection) -> AppResult<HashMap<String, Vec<String>>> {
-    let mut stmt = conn.prepare(
+    assignments(
+        conn,
         "SELECT nl.note_id, nl.label_id FROM note_labels nl
          JOIN labels l ON l.id = nl.label_id
          ORDER BY l.name COLLATE NOCASE ASC",
-    )?;
+    )
+}
+
+pub fn by_task(conn: &Connection) -> AppResult<HashMap<String, Vec<String>>> {
+    assignments(
+        conn,
+        "SELECT tl.task_id, tl.label_id FROM task_labels tl
+         JOIN labels l ON l.id = tl.label_id
+         ORDER BY l.name COLLATE NOCASE ASC",
+    )
+}
+
+fn assignments(conn: &Connection, sql: &str) -> AppResult<HashMap<String, Vec<String>>> {
+    let mut stmt = conn.prepare(sql)?;
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     let rows = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     })?;
     for row in rows {
-        let (note_id, label_id) = row?;
-        map.entry(note_id).or_default().push(label_id);
+        let (owner_id, label_id) = row?;
+        map.entry(owner_id).or_default().push(label_id);
     }
     Ok(map)
 }
@@ -188,6 +225,43 @@ mod tests {
             delete(conn, &privat.id)?;
             assert!(by_note(conn)?.get(&note.id).is_none());
             assert!(notes::get(conn, &note.id).is_ok());
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn labels_work_for_tasks_too() {
+        use crate::db::models::TaskDraft;
+        use crate::db::tasks;
+
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let task = tasks::create(
+                conn,
+                &TaskDraft {
+                    title: "Migration".into(),
+                    description: String::new(),
+                    due_date: None,
+                    due_time: None,
+                    source_note_id: None,
+                    ai_generated: false,
+                    confidence: None,
+                    recurrence: None,
+                    priority: Default::default(),
+                },
+            )?;
+            let dringend = create(conn, "Dringend", "red")?;
+
+            set_for_task(conn, &task.id, &[dringend.id.clone()])?;
+            assert_eq!(
+                tasks::get(conn, &task.id)?.labels,
+                vec![dringend.id.clone()]
+            );
+
+            // Label loeschen entfernt nur die Zuordnung, nicht die Aufgabe.
+            delete(conn, &dringend.id)?;
+            assert!(tasks::get(conn, &task.id)?.labels.is_empty());
             Ok(())
         })
         .expect("operations");

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Checkbox, Field, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
 import { refreshAll, refreshStatus, reportError, showToast, useStore } from '@/lib/store';
-import type { AppSettings, BackupInfo } from '@/types';
+import type { AppSettings, BackupCheck, BackupInfo } from '@/types';
 import { formatDateTime } from '@/utils/date';
 
 interface DataSectionProps {
@@ -24,7 +24,29 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
   const [shortcut, setShortcut] = useState(settings.quickCapture.shortcut);
   const [importPath, setImportPath] = useState('');
   const [importFolder, setImportFolder] = useState('');
+  const [check, setCheck] = useState<BackupCheck | null>(null);
   const folders = useStore((state) => state.folders);
+
+  /** Oeffnet den Windows-Ordnerdialog und uebernimmt die Auswahl. */
+  const pickInto = async (apply: (path: string) => void) => {
+    try {
+      const picked = await api.system.pickDirectory();
+      if (picked) apply(picked);
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
+  const verifyBackup = async (fileName: string) => {
+    setBusy(true);
+    try {
+      setCheck(await api.backup.verify(fileName));
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const importMarkdown = async () => {
     setBusy(true);
@@ -87,7 +109,7 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
       const summary = await api.backup.import(fileName);
       showToast({
         kind: 'success',
-        message: `Importiert: ${summary.notes} Notizen, ${summary.tasks} Tasks, ${summary.skipped} bereits vorhanden`,
+        message: `Importiert: ${summary.notes} Notizen, ${summary.tasks} Aufgaben, ${summary.skipped} bereits vorhanden`,
       });
       await refreshAll();
     } catch (error) {
@@ -124,7 +146,7 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
           Enter, fertig - die Notiz wird gespeichert und auf Wunsch direkt analysiert.
         </p>
 
-        <Field label="Kürzel" hint="Form: Ctrl+Alt+N. Wird das Kürzel bereits belegt, meldet Windows einen Fehler.">
+        <Field label="Kürzel" hint="Form: Strg+Alt+N (als Ctrl schreiben). Wird das Kürzel bereits belegt, meldet Windows einen Fehler.">
           <div className="field__row">
             <TextInput
               className="input--compact"
@@ -194,7 +216,7 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
       <section className="settings__group">
         <h3 className="settings__group-title">Sicherung</h3>
         <p className="field__hint" style={{ marginBottom: 10 }}>
-          Notizen und Tasks liegen nur auf diesem Rechner. Die Sicherung schreibt alles als
+          Notizen und Aufgaben liegen nur auf diesem Rechner. Die Sicherung schreibt alles als
           JSON-Datei in einen Ordner deiner Wahl - kopier den ab und zu weg.
         </p>
 
@@ -209,18 +231,30 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
         </div>
 
         <Field label="Ordner" hint={`Leer lassen für den Standard. Aktuell: ${directory || 'unbekannt'}`}>
-          <TextInput
-            value={settings.backup.directory}
-            placeholder="Standard: Dokumente\Notely Backups"
-            spellCheck={false}
-            onChange={(event) =>
-              onChange({
-                ...settings,
-                backup: { ...settings.backup, directory: event.currentTarget.value },
-              })
-            }
-            onBlur={() => void reload()}
-          />
+          <div className="field__row">
+            <TextInput
+              value={settings.backup.directory}
+              placeholder="Standard: Dokumente\Notely Backups"
+              spellCheck={false}
+              onChange={(event) =>
+                onChange({
+                  ...settings,
+                  backup: { ...settings.backup, directory: event.currentTarget.value },
+                })
+              }
+              onBlur={() => void reload()}
+            />
+            <Button
+              onClick={() =>
+                void pickInto((path) => {
+                  onChange({ ...settings, backup: { ...settings.backup, directory: path } });
+                  void reload();
+                })
+              }
+            >
+              Wählen
+            </Button>
+          </div>
         </Field>
 
         <Field label="Sicherungen aufbewahren">
@@ -270,6 +304,7 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
               spellCheck={false}
               onChange={(event) => setImportPath(event.currentTarget.value)}
             />
+            <Button onClick={() => void pickInto(setImportPath)}>Wählen</Button>
             <select
               className="select input--compact"
               value={importFolder}
@@ -296,16 +331,41 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
                 <span className="field__hint">
                   {formatDateTime(info.createdAt)} · {formatSize(info.sizeBytes)} · {info.fileName}
                 </span>
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  title="Inhalte aus dieser Sicherung ergänzen"
-                  onClick={() => void importBackup(info.fileName)}
-                >
-                  Wiederherstellen
-                </Button>
+                <span className="field__row">
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    title="Datei lesen und Inhalt anzeigen, ohne etwas zu ändern"
+                    onClick={() => void verifyBackup(info.fileName)}
+                  >
+                    Prüfen
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    title="Inhalte aus dieser Sicherung ergänzen"
+                    onClick={() => void importBackup(info.fileName)}
+                  >
+                    Wiederherstellen
+                  </Button>
+                </span>
               </div>
             ))}
+
+            {check ? (
+              <div className="check" data-ok={check.ok}>
+                <p className="miss__line">
+                  <strong>{check.fileName}</strong> · {check.message}
+                </p>
+                {check.ok ? (
+                  <p className="field__hint">
+                    {check.notes} Notizen · {check.tasks} Aufgaben · {check.folders} Ordner ·{' '}
+                    {check.labels} Labels · aus Version {check.appVersion || 'unbekannt'}
+                  </p>
+                ) : null}
+                <p className="field__hint">SHA-256: {check.sha256}</p>
+              </div>
+            ) : null}
             <p className="field__hint" style={{ marginTop: 8 }}>
               Wiederherstellen ergänzt fehlende Einträge. Vorhandene Notizen und Tasks werden nie
               überschrieben oder gelöscht.

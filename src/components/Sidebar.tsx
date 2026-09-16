@@ -27,7 +27,7 @@ export function Sidebar({ view, tasks, noteCount, version, onSelect }: SidebarPr
   const entries: NavEntry[] = [
     { id: 'today', label: 'Heute', count: today },
     { id: 'inbox', label: 'Inbox', count: inbox },
-    { id: 'tasks', label: 'Tasks', count: open.length },
+    { id: 'tasks', label: 'Aufgaben', count: open.length },
     { id: 'notes', label: 'Notizen', count: noteCount },
   ];
 
@@ -68,7 +68,7 @@ export function Sidebar({ view, tasks, noteCount, version, onSelect }: SidebarPr
         aria-current={view === 'settings'}
         onClick={() => onSelect('settings')}
       >
-        <span>Settings</span>
+        <span>Einstellungen</span>
       </button>
       <p className="sidebar__hint">Strg+K für Befehle</p>
     </nav>

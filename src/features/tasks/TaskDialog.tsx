@@ -1,62 +1,56 @@
 import { useState } from 'react';
 
+import { LabelChip } from '@/components/LabelChip';
 import { Button, Dialog, Field, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
-import { run, useStore } from '@/lib/store';
-import type { Task } from '@/types';
+import { requestOpenNote, requestView, run, useStore } from '@/lib/store';
+import type { Priority, Task } from '@/types';
 import { addDays, toIsoDate } from '@/utils/date';
-import { RECURRENCE_PRESETS, describeRecurrence, joinRule, splitRule } from '@/utils/recurrence';
+import { PRIORITIES } from '@/utils/priority';
+import { RecurrenceEditor } from './RecurrenceEditor';
 
 interface TaskDialogProps {
   task: Task | null;
   onClose: () => void;
 }
 
-const CUSTOM = 'custom';
-
 export function TaskDialog({ task, onClose }: TaskDialogProps) {
   const dayparts = useStore((state) => state.status?.settings.dayparts ?? []);
+  const labels = useStore((state) => state.labels);
+
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [dueDate, setDueDate] = useState(task?.dueDate ?? '');
   const [dueTime, setDueTime] = useState(task?.dueTime ?? '');
-
-  const initial = splitRule(task?.recurrence ?? '');
-  const [rule, setRule] = useState(initial.rule);
-  const [until, setUntil] = useState(initial.until);
+  const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal');
+  const [rule, setRule] = useState(task?.recurrence ?? '');
+  const [selectedLabels, setSelectedLabels] = useState<string[]>(task?.labels ?? []);
 
   const today = toIsoDate(new Date());
-  const isPreset = RECURRENCE_PRESETS.some((preset) => preset.rule === rule);
-  const [custom, setCustom] = useState(!isPreset && rule !== '');
 
-  // Eine Wiederholung ohne Datum hat keinen Startpunkt. Statt den Benutzer in
-  // einen Fehler laufen zu lassen, setzt die Auswahl den heutigen Tag.
-  const applyRule = (value: string) => {
-    setRule(value);
-    if (value && !dueDate) setDueDate(today);
-    if (!value) setUntil('');
+  const toggleLabel = (id: string) => {
+    setSelectedLabels((current) =>
+      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
+    );
   };
 
   const submit = async () => {
     if (!title.trim()) return;
-    const recurrence = joinRule(rule.trim(), until) || null;
+    const recurrence = rule.trim() || null;
 
-    const result = task
-      ? await run(
-          () =>
-            api.tasks.update({
+    const result = await run(
+      async () => {
+        const saved = task
+          ? await api.tasks.update({
               id: task.id,
               title,
               description,
               dueDate: dueDate || null,
               dueTime: dueTime || null,
               recurrence,
-            }),
-          { success: 'Task aktualisiert' },
-        )
-      : await run(
-          () =>
-            api.tasks.create({
+              priority,
+            })
+          : await api.tasks.create({
               title,
               description,
               dueDate: dueDate || null,
@@ -65,19 +59,41 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
               aiGenerated: false,
               confidence: null,
               recurrence,
-            }),
-          { success: 'Task erstellt' },
-        );
+              priority,
+            });
+
+        // Labels erst nach dem Anlegen - vorher gibt es keine ID.
+        const before = [...(task?.labels ?? [])].sort().join(',');
+        const after = [...selectedLabels].sort().join(',');
+        if (before !== after) {
+          return api.tasks.setLabels(saved.id, selectedLabels);
+        }
+        return saved;
+      },
+      { success: task ? 'Aufgabe aktualisiert' : 'Aufgabe erstellt' },
+    );
 
     if (result) onClose();
   };
 
+  const openSource = () => {
+    if (!task?.sourceNoteId) return;
+    requestView('notes');
+    requestOpenNote(task.sourceNoteId);
+    onClose();
+  };
+
   return (
     <Dialog
-      title={task ? 'Task bearbeiten' : 'Neuer Task'}
+      title={task ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'}
       onClose={onClose}
       footer={
         <>
+          {task?.sourceNoteId ? (
+            <Button variant="ghost" onClick={openSource} title="Notiz öffnen, aus der sie entstand">
+              Ursprungsnotiz
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={onClose}>
             Abbrechen
           </Button>
@@ -99,7 +115,7 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
         />
       </Field>
 
-      <Field label="Notiz zum Task">
+      <Field label="Notiz zur Aufgabe">
         <textarea
           className="textarea"
           style={{ minHeight: 70 }}
@@ -124,6 +140,19 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
             value={dueTime}
             onChange={(event) => setDueTime(event.currentTarget.value)}
           />
+        </Field>
+        <Field label="Priorität">
+          <select
+            className="select input--compact"
+            value={priority}
+            onChange={(event) => setPriority(event.currentTarget.value as Priority)}
+          >
+            {PRIORITIES.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
         </Field>
       </div>
 
@@ -152,65 +181,37 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
           onClick={() => {
             setDueDate('');
             setDueTime('');
-            applyRule('');
+            setRule('');
           }}
         >
           Ohne Termin
         </Button>
       </div>
 
-      <Field label="Wiederholung">
-        <select
-          className="select"
-          value={custom ? CUSTOM : rule}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            if (value === CUSTOM) {
-              setCustom(true);
-              return;
-            }
-            setCustom(false);
-            applyRule(value);
-          }}
-        >
-          {RECURRENCE_PRESETS.map((preset) => (
-            <option key={preset.rule || 'none'} value={preset.rule}>
-              {preset.label}
-            </option>
-          ))}
-          <option value={CUSTOM}>Benutzerdefiniert…</option>
-        </select>
-      </Field>
-
-      {custom ? (
-        <Field
-          label="Eigene Regel"
-          hint="Form: daily:2, weekly:1:mo,we,fr, monthly:1:last, yearly:1. Einzelne Wochentage nur bei jeder Woche."
-        >
-          <TextInput
-            value={rule}
-            placeholder="weekly:1:mo,we"
-            onChange={(event) => applyRule(event.currentTarget.value.trim())}
-          />
+      {labels.length > 0 ? (
+        <Field label="Labels">
+          <div className="notes__label-filter">
+            {labels.map((label) => (
+              <LabelChip
+                key={label.id}
+                label={label}
+                active={selectedLabels.includes(label.id)}
+                title={selectedLabels.includes(label.id) ? 'Entfernen' : 'Zuweisen'}
+                onClick={() => toggleLabel(label.id)}
+              />
+            ))}
+          </div>
         </Field>
       ) : null}
 
-      {rule ? (
-        <div className="field__row">
-          <Field label="Endet am" hint="Leer lassen für unbegrenzt.">
-            <TextInput
-              type="date"
-              className="input--compact"
-              value={until}
-              min={dueDate || undefined}
-              onChange={(event) => setUntil(event.currentTarget.value)}
-            />
-          </Field>
-          <p className="field__hint" style={{ alignSelf: 'flex-end', paddingBottom: 6 }}>
-            {describeRecurrence(joinRule(rule, until))}
-          </p>
-        </div>
-      ) : null}
+      <RecurrenceEditor
+        value={rule}
+        dueDate={dueDate}
+        onChange={(next) => {
+          setRule(next);
+          if (next && !dueDate) setDueDate(today);
+        }}
+      />
     </Dialog>
   );
 }

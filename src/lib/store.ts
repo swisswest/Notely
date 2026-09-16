@@ -9,6 +9,7 @@ import type {
   Note,
   ReviewStatus,
   Task,
+  ViewId,
 } from '@/types';
 
 export interface Toast {
@@ -40,6 +41,13 @@ interface StoreState {
   newNoteSignal: number;
   /** Von der Suche angeforderte Notiz; der Zähler löst das Öffnen aus. */
   openNote: { id: string; token: number } | null;
+  /** Angeforderter Ansichtswechsel; der Zähler löst ihn aus. */
+  viewRequest: { id: ViewId; token: number } | null;
+  /**
+   * Weitere Vorschläge, die nach dem aktuellen Dialog zu bestätigen sind.
+   * Entsteht bei der Sammelanalyse mehrerer Notizen.
+   */
+  suggestionQueue: AnalysisResult[];
 }
 
 const initialState: StoreState = {
@@ -57,6 +65,8 @@ const initialState: StoreState = {
   dialog: null,
   newNoteSignal: 0,
   openNote: null,
+  viewRequest: null,
+  suggestionQueue: [],
 };
 
 let state: StoreState = initialState;
@@ -90,11 +100,32 @@ export function openSuggestionDialog(result: AnalysisResult): void {
   setState({ dialog: { kind: 'suggestions', result } });
 }
 
+/**
+ * Arbeitet mehrere Analyseergebnisse nacheinander ab. Alles gleichzeitig
+ * anzuzeigen wäre unübersichtlich; eine Liste, die man später abarbeiten muss,
+ * würde vergessen.
+ */
+export function openSuggestionQueue(results: AnalysisResult[]): void {
+  const [first, ...rest] = results;
+  if (!first) return;
+  setState({ dialog: { kind: 'suggestions', result: first }, suggestionQueue: rest });
+}
+
+/** Wechselt die Ansicht aus einer beliebigen Komponente heraus. */
+export function requestView(id: ViewId): void {
+  setState({ viewRequest: { id, token: (state.viewRequest?.token ?? 0) + 1 } });
+}
+
 export function openReviewDialog(status: ReviewStatus): void {
   setState({ dialog: { kind: 'review', status } });
 }
 
 export function closeDialog(): void {
+  const [next, ...rest] = state.suggestionQueue;
+  if (next) {
+    setState({ dialog: { kind: 'suggestions', result: next }, suggestionQueue: rest });
+    return;
+  }
   setState({ dialog: null });
 }
 
@@ -166,9 +197,21 @@ async function reloadNotes(): Promise<void> {
   }
 }
 
-export async function setNoteSearch(term: string): Promise<void> {
+/**
+ * Die Suche lädt erst, wenn kurz nichts mehr getippt wurde. Ohne das setzt
+ * jeder Tastendruck eine Datenbankabfrage ab, und bei vielen Notizen
+ * überholen sich die Antworten gegenseitig.
+ */
+const SEARCH_DELAY_MS = 250;
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function setNoteSearch(term: string): void {
   setState({ noteSearch: term });
-  await reloadNotes();
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchTimer = null;
+    void reloadNotes();
+  }, SEARCH_DELAY_MS);
 }
 
 export async function setNoteFolder(folder: string): Promise<void> {
@@ -187,6 +230,10 @@ export async function toggleNoteLabel(labelId: string): Promise<void> {
 }
 
 export async function clearNoteFilters(): Promise<void> {
+  if (searchTimer !== null) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
   setState({ noteFolder: 'all', noteLabels: [], noteSearch: '' });
   await reloadNotes();
 }

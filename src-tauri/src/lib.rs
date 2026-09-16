@@ -30,6 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec![startup::MINIMIZED_FLAG]),
@@ -199,6 +200,15 @@ pub fn run() {
             commands::ai::clear_ai_feedback,
             commands::update::check_for_update,
             commands::update::install_update,
+            commands::update::skip_update_version,
+            commands::notes::note_versions,
+            commands::notes::restore_note_version,
+            commands::notes::notes_needing_attention,
+            commands::tasks::set_task_labels,
+            commands::ai::analyze_notes,
+            commands::tasks::recurrence_preview,
+            commands::system::pick_directory,
+            commands::backup::verify_backup,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");
@@ -229,7 +239,9 @@ async fn announce_update(app: &tauri::AppHandle) {
 
     let already_seen = state.db.with(|conn| {
         let mut settings = settings_repo::load(conn)?;
-        if settings.updates.last_seen_version.as_deref() == Some(version.as_str()) {
+        let known = settings.updates.last_seen_version.as_deref() == Some(version.as_str());
+        let skipped = settings.updates.skipped_version.as_deref() == Some(version.as_str());
+        if known || skipped {
             return Ok(true);
         }
         settings.updates.last_seen_version = Some(version.clone());

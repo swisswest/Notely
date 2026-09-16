@@ -1,7 +1,10 @@
 use tauri::{AppHandle, State};
 
-use crate::db::models::{FolderFilter, Note, NoteFilter, Task};
-use crate::db::{folders as folder_repo, labels as label_repo, notes as repo, tasks as task_repo};
+use crate::db::models::{FolderFilter, Note, NoteFilter, NoteVersion, Task};
+use crate::db::{
+    folders as folder_repo, labels as label_repo, notes as repo, tasks as task_repo,
+    versions as version_repo,
+};
 use crate::domain::validation;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -144,6 +147,44 @@ pub fn set_note_labels(
     })?;
     window::notify_data_changed(&app);
     Ok(note)
+}
+
+/// Bisherige Fassungen einer Notiz, neueste zuerst.
+#[tauri::command]
+pub fn note_versions(state: State<'_, AppState>, note_id: String) -> AppResult<Vec<NoteVersion>> {
+    let note_id = validation::identifier(&note_id, "Notiz-ID")?;
+    state.db.with(|conn| version_repo::list(conn, &note_id))
+}
+
+/// Setzt eine frühere Fassung wieder ein. Der aktuelle Stand wird dabei
+/// selbst zur Version - ein Zurücksetzen ist damit ebenfalls umkehrbar.
+#[tauri::command]
+pub fn restore_note_version(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    note_id: String,
+    version_id: i64,
+) -> AppResult<Note> {
+    let note_id = validation::identifier(&note_id, "Notiz-ID")?;
+    let note = state.db.with(|conn| {
+        let version = version_repo::get(conn, &note_id, version_id)?;
+        repo::update_content(conn, &note_id, &version.content)
+    })?;
+    window::notify_data_changed(&app);
+    Ok(note)
+}
+
+/// Notizen, die noch Aufmerksamkeit brauchen: nie analysiert oder beim
+/// letzten Versuch gescheitert. Bewusst unabhängig von den Filtern der
+/// Notizansicht.
+#[tauri::command]
+pub fn notes_needing_attention(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> AppResult<Vec<Note>> {
+    state
+        .db
+        .with(|conn| repo::needing_attention(conn, limit.unwrap_or(DEFAULT_LIMIT)))
 }
 
 #[tauri::command]

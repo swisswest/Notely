@@ -51,7 +51,7 @@ export function SuggestionDialog({ result, onClose }: SuggestionDialogProps) {
     const accepted = decisions.filter((decision) => decision.accepted !== null).length;
 
     const created = await run(() => api.ai.createFromSuggestions(result.noteId, decisions), {
-      success: accepted > 0 ? `${accepted} Task(s) erstellt` : 'Vorschläge verworfen',
+      success: accepted > 0 ? `${accepted} Aufgabe(n) erstellt` : 'Vorschläge verworfen',
     });
     if (created) onClose();
   };
@@ -71,7 +71,7 @@ export function SuggestionDialog({ result, onClose }: SuggestionDialogProps) {
             onClick={() => void submit(true)}
             disabled={selectedCount === 0}
           >
-            {selectedCount} Task(s) erstellen
+            {selectedCount} Aufgabe(n) erstellen
           </Button>
         </>
       }

@@ -69,6 +69,25 @@ pub fn complete_onboarding(
     })
 }
 
+/// Oeffnet den Windows-Ordnerdialog. `None`, wenn abgebrochen wurde.
+///
+/// Der Aufruf laeuft ueber den Callback statt ueber die blockierende
+/// Variante: sonst haengt je nach Thread die ganze Oberflaeche.
+#[tauri::command]
+pub async fn pick_directory(app: AppHandle) -> AppResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_folder(move |picked| {
+        let _ = sender.send(picked);
+    });
+
+    let picked = receiver
+        .await
+        .map_err(|_| AppError::internal("Ordnerdialog wurde unerwartet beendet"))?;
+    Ok(picked.map(|path| path.to_string()))
+}
+
 #[tauri::command]
 pub fn log_file_path(app: AppHandle) -> AppResult<String> {
     let dir = app

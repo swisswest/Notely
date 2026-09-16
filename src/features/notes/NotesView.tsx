@@ -19,12 +19,28 @@ import {
 import type { AnalysisResult, Label, Note } from '@/types';
 import { formatDateTime } from '@/utils/date';
 import { OrganizeDialog } from './OrganizeDialog';
+import { VersionDialog } from './VersionDialog';
 
 const ANALYSIS_LABEL: Record<string, string> = {
   ok: 'analysiert',
   empty: 'keine Aufgabe erkannt',
   failed: 'Analyse fehlgeschlagen',
 };
+
+type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+
+const SAVE_STATE_LABEL: Record<SaveState, string> = {
+  idle: '',
+  dirty: 'nicht gespeichert',
+  saving: 'speichert...',
+  saved: 'gespeichert',
+  error: 'nicht gespeichert - letzter Versuch fehlgeschlagen',
+};
+
+/** So lange muss Ruhe sein, bevor automatisch gespeichert wird. */
+const AUTOSAVE_DELAY_MS = 1200;
+/** Kürzere Texte legen noch keine neue Notiz an - sonst entstehen Fragmente. */
+const AUTOSAVE_MIN_CHARS = 3;
 
 export function NotesView() {
   const notes = useStore((state) => state.notes);
@@ -44,7 +60,10 @@ export function NotesView() {
   const [dirty, setDirty] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selected = useMemo(
     () => notes.find((note) => note.id === selectedId) ?? null,
@@ -82,34 +101,102 @@ export function NotesView() {
     setDraft('');
     setDraftFolder(folderFilter !== 'all' && folderFilter !== 'none' ? folderFilter : '');
     setDirty(false);
+    setSaveState('idle');
     editorRef.current?.focus();
   }, [newNoteSignal, folderFilter]);
 
+  /**
+   * Der Autosave-Timer feuert spaeter als der Render, in dem er gesetzt wurde.
+   * Ueber den State gelesen wuerde er deshalb einen veralteten Text speichern
+   * oder - schlimmer - eine zweite Notiz anlegen, weil die frisch vergebene ID
+   * in der alten Closure noch fehlt. Darum laufen die drei Werte, auf die es
+   * beim Speichern ankommt, ueber Refs.
+   */
+  const draftRef = useRef(draft);
+  const selectedIdRef = useRef(selectedId);
+  const folderRef = useRef(draftFolder);
+  const savingRef = useRef(false);
+  draftRef.current = draft;
+  selectedIdRef.current = selectedId;
+  folderRef.current = draftFolder;
+
+  const cancelAutosave = () => {
+    if (autosaveTimer.current !== null) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+  };
+
   const openNote = (note: Note) => {
+    cancelAutosave();
     setSelectedId(note.id);
     setDraft(note.content);
     setDraftFolder(note.folderId ?? '');
     setDirty(false);
+    setSaveState('idle');
   };
 
-  /** Speichert und liefert die ID - die Notiz geht nie verloren. */
+  /**
+   * Speichert und liefert die ID - die Notiz geht nie verloren.
+   *
+   * Unveraenderter Text ist im Backend ein No-op, deshalb muss hier nicht
+   * geraten werden, ob sich seit dem letzten Mal etwas getan hat.
+   */
   const save = async (): Promise<string | null> => {
-    if (!draft.trim()) return selectedId;
-    if (!dirty && selectedId) return selectedId;
+    const text = draftRef.current;
+    if (!text.trim()) return selectedIdRef.current;
+    if (savingRef.current) return selectedIdRef.current;
 
+    cancelAutosave();
+    savingRef.current = true;
+    setSaveState('saving');
     try {
-      const note = selectedId
-        ? await api.notes.update(selectedId, draft)
-        : await api.notes.create(draft, draftFolder || null);
+      const existing = selectedIdRef.current;
+      const note = existing
+        ? await api.notes.update(existing, text)
+        : await api.notes.create(text, folderRef.current || null);
+
+      selectedIdRef.current = note.id;
       setSelectedId(note.id);
-      setDirty(false);
+
+      // Waehrend des Speicherns kann weitergetippt worden sein.
+      if (draftRef.current === text) {
+        setDirty(false);
+        setSaveState('saved');
+      } else {
+        scheduleAutosave(draftRef.current);
+      }
+
       await refreshNotes();
       return note.id;
     } catch (error) {
+      setSaveState('error');
       reportError(error);
       return null;
+    } finally {
+      savingRef.current = false;
     }
   };
+
+  /**
+   * Speichert nach kurzer Ruhezeit von selbst. Der Text einer Notiz soll
+   * nicht davon abhaengen, ob jemand an Strg+S gedacht hat.
+   */
+  const scheduleAutosave = (text: string) => {
+    cancelAutosave();
+    const enough = selectedIdRef.current
+      ? text.trim().length > 0
+      : text.trim().length >= AUTOSAVE_MIN_CHARS;
+    if (!enough) return;
+
+    autosaveTimer.current = setTimeout(() => {
+      autosaveTimer.current = null;
+      void save();
+    }, AUTOSAVE_DELAY_MS);
+  };
+
+  // Beim Verlassen der Ansicht laeuft kein Timer weiter.
+  useEffect(() => cancelAutosave, []);
 
   const analyze = async (noteId: string) => {
     setAnalyzing(true);
@@ -132,7 +219,7 @@ export function NotesView() {
     if (result.createdTaskIds.length > 0) {
       showToast({
         kind: 'success',
-        message: `${result.createdTaskIds.length} Task(s) aus der Notiz erstellt`,
+        message: `${result.createdTaskIds.length} Aufgabe(n) aus der Notiz erstellt`,
       });
       void refreshTasks();
       return;
@@ -149,11 +236,15 @@ export function NotesView() {
 
   const removeNote = async () => {
     if (!selectedId) return;
+    cancelAutosave();
     const result = await run(() => api.notes.remove(selectedId), { success: 'Notiz gelöscht' });
     if (result !== null) {
+      selectedIdRef.current = null;
+      draftRef.current = '';
       setSelectedId(null);
       setDraft('');
       setDirty(false);
+      setSaveState('idle');
     }
   };
 
@@ -185,7 +276,7 @@ export function NotesView() {
           <TextInput
             placeholder="Notizen durchsuchen"
             value={search}
-            onChange={(event) => void setNoteSearch(event.currentTarget.value)}
+            onChange={(event) => setNoteSearch(event.currentTarget.value)}
           />
 
           <div className="notes__filter-row">
@@ -260,8 +351,11 @@ export function NotesView() {
           value={draft}
           placeholder="Frei schreiben. Beispiel: Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren."
           onChange={(event) => {
-            setDraft(event.currentTarget.value);
+            const text = event.currentTarget.value;
+            setDraft(text);
             setDirty(true);
+            setSaveState('dirty');
+            scheduleAutosave(text);
           }}
           onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -329,10 +423,17 @@ export function NotesView() {
             {selected
               ? `Erstellt ${formatDateTime(selected.createdAt)} · Geändert ${formatDateTime(selected.updatedAt)}`
               : 'Neue Notiz'}
-            {dirty ? ' · nicht gespeichert' : ''}
+            {SAVE_STATE_LABEL[saveState] ? (
+              <span data-save-state={saveState}> · {SAVE_STATE_LABEL[saveState]}</span>
+            ) : null}
           </span>
           <span className="field__row">
             {analyzing ? <span className="spinner" aria-label="Analyse läuft" /> : null}
+            {selectedId ? (
+              <Button variant="ghost" onClick={() => setVersionsOpen(true)} title="Frühere Fassungen">
+                Verlauf
+              </Button>
+            ) : null}
             {selectedId ? (
               <Button variant="danger" onClick={() => void removeNote()}>
                 Löschen
@@ -361,6 +462,19 @@ export function NotesView() {
       </div>
 
       {organizeOpen ? <OrganizeDialog onClose={() => setOrganizeOpen(false)} /> : null}
+      {versionsOpen && selectedId ? (
+        <VersionDialog
+          noteId={selectedId}
+          onRestored={(content) => {
+            cancelAutosave();
+            draftRef.current = content;
+            setDraft(content);
+            setDirty(false);
+            setSaveState('saved');
+          }}
+          onClose={() => setVersionsOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

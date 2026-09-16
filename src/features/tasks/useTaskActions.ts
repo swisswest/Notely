@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import { api } from '@/lib/ipc';
-import { openTaskDialog, run, showToast } from '@/lib/store';
+import { openTaskDialog, requestOpenNote, requestView, run, showToast } from '@/lib/store';
 import type { Task } from '@/types';
 import { formatDayLabel, toIsoDate } from '@/utils/date';
 
@@ -11,6 +11,7 @@ export interface TaskActions {
   toggle: (task: Task) => void;
   remove: (task: Task) => void;
   snooze: (task: Task) => void;
+  openSource: (task: Task) => void;
 }
 
 /** Gemeinsame Task-Aktionen für alle Listenansichten. */
@@ -53,11 +54,19 @@ export function useTaskActions(): TaskActions {
     });
   }, []);
 
+  /** Springt zur Notiz, aus der die Aufgabe entstanden ist. */
+  const openSource = useCallback((task: Task) => {
+    if (!task.sourceNoteId) return;
+    requestView('notes');
+    requestOpenNote(task.sourceNoteId);
+  }, []);
+
   return {
     startCreate: () => openTaskDialog(null),
     startEdit: (task: Task) => openTaskDialog(task),
     toggle,
     remove,
     snooze,
+    openSource,
   };
 }

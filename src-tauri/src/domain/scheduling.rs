@@ -120,6 +120,8 @@ mod tests {
             deleted_at: None,
             recurrence: None,
             series_id: None,
+            priority: Default::default(),
+            labels: Vec::new(),
         }
     }
 

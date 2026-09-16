@@ -37,7 +37,7 @@ export function OnboardingDialog({ onDone }: { onDone: () => void }) {
         />
       </div>
       <p className="field__hint">
-        Notizen, Tasks und Erinnerungen funktionieren vollständig offline. Für die automatische
+        Notizen, Aufgaben und Erinnerungen funktionieren vollständig offline. Für die automatische
         Aufgabenerkennung wird in den Einstellungen ein Claude API-Key hinterlegt - er landet im
         Windows Credential Manager, nicht in einer Konfigurationsdatei.
       </p>

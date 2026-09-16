@@ -30,6 +30,8 @@ function task(overrides: Partial<Task>): Task {
     deletedAt: null,
     recurrence: null,
     seriesId: null,
+    priority: 'normal',
+    labels: [],
     ...overrides,
   };
 }
@@ -75,6 +77,30 @@ describe('Einordnung von Tasks', () => {
     expect(bucketOf(task({ dueDate: '2026-09-09', dueTime: '09:00' }), now)).toBe('overdue');
     expect(bucketOf(task({}), now)).toBe('someday');
     expect(bucketOf(task({ completed: true }), now)).toBe('completed');
+  });
+
+  it('sortiert bei gleichem Termin nach Priorität', () => {
+    const list = [
+      task({ id: 'normal', dueDate: '2026-09-10', dueTime: '12:00' }),
+      task({ id: 'hoch', dueDate: '2026-09-10', dueTime: '12:00', priority: 'high' }),
+      task({ id: 'niedrig', dueDate: '2026-09-10', dueTime: '12:00', priority: 'low' }),
+    ];
+    expect([...list].sort(compareTasks).map((entry) => entry.id)).toEqual([
+      'hoch',
+      'normal',
+      'niedrig',
+    ]);
+  });
+
+  it('lässt die Priorität den Termin nicht überstimmen', () => {
+    const list = [
+      task({ id: 'spaet-wichtig', dueDate: '2026-09-11', dueTime: '09:00', priority: 'high' }),
+      task({ id: 'frueh-egal', dueDate: '2026-09-10', dueTime: '09:00', priority: 'low' }),
+    ];
+    expect([...list].sort(compareTasks).map((entry) => entry.id)).toEqual([
+      'frueh-egal',
+      'spaet-wichtig',
+    ]);
   });
 
   it('sortiert nach Fälligkeit, Tasks ohne Termin ans Ende', () => {

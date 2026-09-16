@@ -10,7 +10,7 @@ use crate::db::{
     usage as usage_repo,
 };
 use crate::domain::validation;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::security::secrets::SecretStore;
 use crate::state::AppState;
 use crate::{logging, window};
@@ -21,6 +21,66 @@ use crate::{logging, window};
 pub async fn analyze_note(
     app: AppHandle,
     state: State<'_, AppState>,
+    note_id: String,
+) -> AppResult<AnalysisResult> {
+    analyze_one(&app, &state, note_id).await
+}
+
+/// Hoechstzahl Notizen pro Sammelanalyse. Jede Notiz ist ein API-Aufruf -
+/// ohne Grenze waere ein Fehlgriff teuer.
+pub const MAX_BATCH: usize = 25;
+
+/// Analysiert mehrere Notizen nacheinander. Bewusst seriell: parallele
+/// Aufrufe wuerden nur schneller ins Rate Limit laufen.
+#[tauri::command]
+pub async fn analyze_notes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    note_ids: Vec<String>,
+) -> AppResult<BatchAnalysis> {
+    if note_ids.is_empty() {
+        return Err(AppError::validation("Keine Notizen ausgewaehlt"));
+    }
+    if note_ids.len() > MAX_BATCH {
+        return Err(AppError::validation(format!(
+            "Maximal {MAX_BATCH} Notizen auf einmal"
+        )));
+    }
+
+    let mut summary = BatchAnalysis::default();
+    for note_id in note_ids {
+        match analyze_one(&app, &state, note_id).await {
+            Ok(result) => {
+                summary.analyzed += 1;
+                summary.created += result.created_task_ids.len();
+                if result.needs_confirmation {
+                    summary.pending.push(result);
+                }
+            }
+            // Ein Fehlschlag darf den Rest nicht abbrechen.
+            Err(err) => {
+                summary.failed += 1;
+                logging::warn("ai", format!("Sammelanalyse: {err}"));
+            }
+        }
+    }
+    Ok(summary)
+}
+
+/// Ergebnis einer Sammelanalyse. `pending` sammelt die Vorschlaege, die noch
+/// bestaetigt werden muessen - die Oberflaeche arbeitet sie nacheinander ab.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchAnalysis {
+    pub analyzed: usize,
+    pub failed: usize,
+    pub created: usize,
+    pub pending: Vec<AnalysisResult>,
+}
+
+async fn analyze_one(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
     note_id: String,
 ) -> AppResult<AnalysisResult> {
     let note_id = validation::identifier(&note_id, "Notiz-ID")?;
@@ -74,7 +134,7 @@ pub async fn analyze_note(
                 pending.push(suggestion);
                 continue;
             }
-            match persist(&state, &note_id, &suggestion) {
+            match persist(state, &note_id, &suggestion) {
                 Ok(task) => created_task_ids.push(task.id),
                 Err(err) => {
                     logging::warn("ai", format!("Task nicht anlegbar: {err}"));
@@ -85,7 +145,7 @@ pub async fn analyze_note(
     }
 
     if !created_task_ids.is_empty() {
-        window::notify_data_changed(&app);
+        window::notify_data_changed(app);
     }
 
     Ok(AnalysisResult {
@@ -189,6 +249,7 @@ fn persist(
         ai_generated: true,
         confidence: Some(suggestion.confidence),
         recurrence: None,
+        priority: Default::default(),
     })?;
 
     state.db.with(|conn| task_repo::create(conn, &draft))

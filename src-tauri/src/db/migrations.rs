@@ -123,6 +123,28 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX idx_ai_feedback_time ON ai_feedback(created_at DESC);
     "#,
+    // 5 - Notiz-Versionen, Prioritaet und Labels fuer Aufgaben
+    r#"
+    CREATE TABLE note_versions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id    TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        content    TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX idx_note_versions ON note_versions(note_id, id DESC);
+
+    -- 0 = niedrig, 1 = normal, 2 = hoch. Bestand bleibt normal.
+    ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 1;
+
+    CREATE TABLE task_labels (
+        task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        label_id TEXT NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+        PRIMARY KEY (task_id, label_id)
+    );
+
+    CREATE INDEX idx_task_labels_label ON task_labels(label_id);
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -171,12 +193,12 @@ mod tests {
         let tables: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
-                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels','ai_usage','ai_feedback')",
+                 AND name IN ('notes','tasks','settings','notification_history','folders','labels','note_labels','ai_usage','ai_feedback','note_versions','task_labels')",
                 [],
                 |row| row.get(0),
             )
             .expect("tables");
-        assert_eq!(tables, 9);
+        assert_eq!(tables, 11);
     }
 
     #[test]
@@ -205,6 +227,36 @@ mod tests {
             .expect("note");
         assert_eq!(content, "Bestandsnotiz");
         assert!(folder.is_none());
+    }
+
+    #[test]
+    fn upgrade_from_version_four_keeps_tasks_and_defaults_the_priority() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+
+        for (index, migration) in MIGRATIONS.iter().take(4).enumerate() {
+            conn.execute_batch(migration)
+                .unwrap_or_else(|err| panic!("schema v{}: {err}", index + 1));
+        }
+        conn.execute_batch("PRAGMA user_version = 4")
+            .expect("version");
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, updated_at)
+             VALUES ('t1', 'Bestandsaufgabe', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        run(&conn).expect("upgrade");
+
+        let (title, priority): (String, i64) = conn
+            .query_row(
+                "SELECT title, priority FROM tasks WHERE id = 't1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("task");
+        assert_eq!(title, "Bestandsaufgabe");
+        assert_eq!(priority, 1, "Bestandsaufgaben bleiben normal");
     }
 
     #[test]

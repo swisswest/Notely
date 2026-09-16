@@ -54,8 +54,11 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
 - **Schnellerfassung** per systemweitem Kürzel (`Ctrl+Alt+N`): tippen, Enter, weg.
 - **Tagesabschluss** am Abend: was offen blieb, abhaken oder auf morgen schieben.
 - **Wiederkehrende Aufgaben**: täglich, werktags, an bestimmten Wochentagen,
-  monatlich, am Monatsletzten, jährlich — mit optionalem Enddatum. Der nächste
-  Termin entsteht beim Abhaken.
+  monatlich, am Monatsletzten, jährlich — mit optionalem Enddatum und Vorschau
+  der nächsten Termine. Der nächste Termin entsteht beim Abhaken.
+- **Autosave mit Verlauf**: Notizen speichern sich selbst, die letzten 20
+  Fassungen bleiben abrufbar.
+- **Priorität und Labels** für Aufgaben, samt Filtern.
 - **Papierkorb** mit 30 Tagen Schonfrist und automatische tägliche Sicherung.
 - **Automatische Updates**: signiert, prüfbar, auf Wunsch abschaltbar.
 - **Tray, Autostart** und Start im Hintergrund.
@@ -177,6 +180,10 @@ Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 
 - [x] Automatische Updates über den Tauri-Updater
 - [x] Wiederkehrende Aufgaben
+- [x] Autosave und Versionsverlauf für Notizen
+- [x] Priorität und Labels für Aufgaben
+- [ ] Wochenansicht mit Tageszeiten
+- [ ] Volltextsuche über SQLite FTS5
 - [ ] Code-Signing, damit die SmartScreen-Warnung verschwindet
 - [ ] Getrennte Profile für Privat und Arbeit
 

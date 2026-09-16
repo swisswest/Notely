@@ -40,10 +40,10 @@ import type { AnalysisResult, UpdateInfo, ViewId } from '@/types';
 const TITLES: Record<ViewId, string> = {
   today: 'Heute',
   inbox: 'Inbox',
-  tasks: 'Tasks',
+  tasks: 'Aufgaben',
   notes: 'Notizen',
   trash: 'Papierkorb',
-  settings: 'Settings',
+  settings: 'Einstellungen',
 };
 
 const SEARCH_PREVIEW_CHARS = 70;
@@ -56,6 +56,7 @@ export function App() {
   const toast = useStore((state) => state.toast);
   const notes = useStore((state) => state.notes);
   const tasks = useStore((state) => state.tasks);
+  const viewRequest = useStore((state) => state.viewRequest);
 
   const [view, setView] = useState<ViewId>('today');
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -67,6 +68,12 @@ export function App() {
     setView('notes');
     requestNewNote();
   }, []);
+
+  // Andere Ansichten koennen den Wechsel anfordern, etwa der Sprung von
+  // einer Aufgabe zu ihrer Ursprungsnotiz.
+  useEffect(() => {
+    if (viewRequest) setView(viewRequest.id);
+  }, [viewRequest]);
 
   useEffect(() => {
     void refreshAll();
@@ -123,7 +130,7 @@ export function App() {
     const taskEntries: Command[] = results.tasks.map((task) => ({
       id: `task:${task.id}`,
       label: task.title,
-      hint: task.dueDate ? `Task · ${task.dueDate}` : 'Task',
+      hint: task.dueDate ? `Aufgabe · ${task.dueDate}` : 'Aufgabe',
       run: () => openTaskDialog(task),
     }));
     const noteEntries: Command[] = results.notes.map((note) => ({
@@ -164,9 +171,9 @@ export function App() {
     () => [
       { id: 'today', label: 'Heute anzeigen', hint: 'Strg+1', run: () => setView('today') },
       { id: 'inbox', label: 'Inbox anzeigen', hint: 'Strg+2', run: () => setView('inbox') },
-      { id: 'tasks', label: 'Tasks anzeigen', hint: 'Strg+3', run: () => setView('tasks') },
+      { id: 'tasks', label: 'Aufgaben anzeigen', hint: 'Strg+3', run: () => setView('tasks') },
       { id: 'notes', label: 'Notizen anzeigen', hint: 'Strg+4', run: () => setView('notes') },
-      { id: 'new-task', label: 'Neuen Task erstellen', hint: 'Strg+T', run: () => openTaskDialog(null) },
+      { id: 'new-task', label: 'Neue Aufgabe erstellen', hint: 'Strg+T', run: () => openTaskDialog(null) },
       { id: 'new-note', label: 'Neue Notiz', hint: 'Strg+N', run: goToNotes },
       { id: 'settings', label: 'Einstellungen öffnen', run: () => setView('settings') },
       { id: 'updates', label: 'Nach Updates suchen', run: () => setView('settings') },
@@ -227,7 +234,7 @@ export function App() {
             ) : null}
             {view !== 'settings' && view !== 'notes' && view !== 'trash' ? (
               <Button variant="primary" onClick={() => openTaskDialog(null)}>
-                Neuer Task
+                Neue Aufgabe
               </Button>
             ) : null}
             <Button variant="ghost" onClick={() => setPaletteOpen(true)}>

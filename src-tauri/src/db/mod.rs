@@ -8,6 +8,7 @@ pub mod notification_history;
 pub mod settings;
 pub mod tasks;
 pub mod usage;
+pub mod versions;
 
 use std::path::Path;
 use std::sync::Mutex;

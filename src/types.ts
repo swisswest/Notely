@@ -12,6 +12,14 @@ export interface Note {
 
 export type AnalysisStatus = 'ok' | 'empty' | 'failed';
 
+/** Eine gesicherte Fassung einer Notiz. */
+export interface NoteVersion {
+  id: number;
+  noteId: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface Folder {
   id: string;
   name: string;
@@ -44,11 +52,16 @@ export interface Task {
   confidence: number | null;
   snoozedUntil: string | null;
   deletedAt: string | null;
+  priority: Priority;
+  /** Label-IDs; die Bezeichnungen loest die Oberflaeche selbst auf. */
+  labels: string[];
   /** Wiederholungsregel in Textform, z. B. "weekly:1:mo,we". */
   recurrence: string | null;
   /** Klammert alle Aufgaben einer Serie. */
   seriesId: string | null;
 }
+
+export type Priority = 'low' | 'normal' | 'high';
 
 export interface TrashContents {
   notes: Note[];
@@ -83,6 +96,7 @@ export interface TaskDraft {
   aiGenerated: boolean;
   confidence: number | null;
   recurrence: string | null;
+  priority: Priority;
 }
 
 export interface TaskEdit {
@@ -92,6 +106,7 @@ export interface TaskEdit {
   dueDate: string | null;
   dueTime: string | null;
   recurrence: string | null;
+  priority: Priority;
 }
 
 /** Ergebnis des Abhakens: bei einer Serie entsteht direkt der nächste Termin. */
@@ -142,6 +157,28 @@ export interface FeedbackSummary {
   total: FeedbackCounts;
   recent: FeedbackCounts;
   misses: FeedbackEntry[];
+}
+
+/** Ergebnis einer Sammelanalyse. */
+export interface BatchAnalysis {
+  analyzed: number;
+  failed: number;
+  created: number;
+  pending: AnalysisResult[];
+}
+
+/** Ergebnis einer Sicherungspruefung - ohne Import. */
+export interface BackupCheck {
+  fileName: string;
+  ok: boolean;
+  message: string;
+  appVersion: string;
+  exportedAt: string;
+  notes: number;
+  tasks: number;
+  folders: number;
+  labels: number;
+  sha256: string;
 }
 
 export interface UpdateInfo {
@@ -215,6 +252,7 @@ export interface AppSettings {
   updates: {
     checkOnStart: boolean;
     lastSeenVersion: string | null;
+    skippedVersion: string | null;
   };
   timezone: string;
   onboardingCompleted: boolean;

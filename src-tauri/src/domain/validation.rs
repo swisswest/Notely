@@ -176,6 +176,7 @@ mod tests {
             ai_generated: false,
             confidence: None,
             recurrence: None,
+            priority: Default::default(),
         }
     }
 

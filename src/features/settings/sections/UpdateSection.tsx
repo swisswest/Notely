@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Button, Checkbox, Field } from '@/components/ui';
 import { api, describeError } from '@/lib/ipc';
-import { reportError, showToast } from '@/lib/store';
+import { refreshStatus, reportError, showToast } from '@/lib/store';
 import type { AppSettings, UpdateInfo } from '@/types';
 
 interface UpdateSectionProps {
@@ -42,6 +42,19 @@ export function UpdateSection({ settings, version, onChange }: UpdateSectionProp
     }
   };
 
+  /** Merkt die Version im Backend, damit der Start-Hinweis dazu schweigt. */
+  const skip = async (version: string | null) => {
+    if (!version) return;
+    try {
+      await api.updates.skip(version);
+      await refreshStatus();
+      setInfo(null);
+      showToast({ kind: 'info', message: `Version ${version} wird nicht mehr gemeldet` });
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
   return (
     <section className="settings__group">
       <h3 className="settings__group-title">Updates</h3>
@@ -76,13 +89,27 @@ export function UpdateSection({ settings, version, onChange }: UpdateSectionProp
             Version {info.version} ist verfügbar. Die App installiert sie und startet neu; deine
             Daten bleiben unberührt.
           </p>
-          {info.notes ? (
-            <pre className="update__notes">{info.notes}</pre>
-          ) : null}
-          <Button variant="primary" onClick={() => void install()} disabled={installing}>
-            {installing ? 'Wird installiert...' : `Auf ${info.version} aktualisieren`}
-          </Button>
+          {info.notes ? <pre className="update__notes">{info.notes}</pre> : null}
+          <div className="field__row">
+            <Button variant="primary" onClick={() => void install()} disabled={installing}>
+              {installing ? 'Wird installiert...' : `Auf ${info.version} aktualisieren`}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={installing}
+              title="Diese Version nicht mehr beim Start melden"
+              onClick={() => void skip(info.version)}
+            >
+              Version überspringen
+            </Button>
+          </div>
         </div>
+      ) : null}
+
+      {settings.updates.skippedVersion ? (
+        <p className="field__hint">
+          Übersprungen: Version {settings.updates.skippedVersion}. Eine neuere meldet sich wieder.
+        </p>
       ) : null}
     </section>
   );

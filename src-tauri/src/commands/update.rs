@@ -1,9 +1,11 @@
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use tauri_plugin_updater::UpdaterExt;
 
+use crate::db::settings as settings_repo;
 use crate::error::{AppError, AppResult};
 use crate::logging;
+use crate::state::AppState;
 
 /// Was der Updater über die nächste Version weiss.
 #[derive(Debug, Clone, Serialize)]
@@ -86,12 +88,33 @@ pub async fn check_for_update(app: AppHandle) -> AppResult<UpdateInfo> {
     match &result {
         Ok(info) if info.available => logging::info(
             "update",
-            format!("Version {} verfuegbar", info.version.as_deref().unwrap_or("?")),
+            format!(
+                "Version {} verfuegbar",
+                info.version.as_deref().unwrap_or("?")
+            ),
         ),
         Ok(_) => logging::info("update", "Keine neuere Version"),
         Err(err) => logging::warn("update", format!("Pruefung fehlgeschlagen: {err}")),
     }
     result
+}
+
+/// Merkt sich, dass diese Version nicht gewollt ist. Der Start-Hinweis
+/// schweigt dazu; die naechste Version meldet sich wieder.
+#[tauri::command]
+pub fn skip_update_version(state: State<'_, AppState>, version: String) -> AppResult<()> {
+    let trimmed = version.trim();
+    if trimmed.is_empty() || trimmed.len() > 40 {
+        return Err(AppError::validation("Ungültige Versionsangabe"));
+    }
+
+    state.db.with(|conn| {
+        let mut settings = settings_repo::load(conn)?;
+        settings.updates.skipped_version = Some(trimmed.to_string());
+        settings_repo::save(conn, &settings)
+    })?;
+    logging::info("update", format!("Version {trimmed} uebersprungen"));
+    Ok(())
 }
 
 /// Lädt die neue Version, installiert sie und startet die App neu.

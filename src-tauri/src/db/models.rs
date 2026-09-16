@@ -23,6 +23,17 @@ pub struct Note {
     pub labels: Vec<String>,
 }
 
+/// Eine gesicherte Fassung einer Notiz. Der Originaltext geht damit selbst
+/// dann nicht verloren, wenn jemand versehentlich alles ueberschreibt.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteVersion {
+    pub id: i64,
+    pub note_id: String,
+    pub content: String,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Folder {
@@ -90,6 +101,10 @@ pub struct Task {
     /// Gesetzt, solange der Task im Papierkorb liegt.
     #[serde(default)]
     pub deleted_at: Option<String>,
+    pub priority: Priority,
+    /// Label-IDs; die Bezeichnungen loest die Oberflaeche selbst auf.
+    #[serde(default)]
+    pub labels: Vec<String>,
     /// Wiederholungsregel in Textform, siehe `domain::recurrence`.
     #[serde(default)]
     pub recurrence: Option<String>,
@@ -117,6 +132,8 @@ pub struct TaskDraft {
     pub confidence: Option<f64>,
     #[serde(default)]
     pub recurrence: Option<String>,
+    #[serde(default)]
+    pub priority: Priority,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +149,8 @@ pub struct TaskEdit {
     pub due_time: Option<String>,
     #[serde(default)]
     pub recurrence: Option<String>,
+    #[serde(default)]
+    pub priority: Priority,
 }
 
 /// Ein von Claude vorgeschlagener Task, bereits validiert und mit lokal
@@ -185,6 +204,37 @@ impl Verdict {
             "edited" => Some(Verdict::Edited),
             "rejected" => Some(Verdict::Rejected),
             _ => None,
+        }
+    }
+}
+
+/// Dringlichkeit einer Aufgabe. Bewusst nur drei Stufen - mehr wird in der
+/// Praxis nicht konsequent gepflegt und hilft dann beim Sortieren nicht mehr.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Priority {
+    Low,
+    #[default]
+    Normal,
+    High,
+}
+
+impl Priority {
+    pub fn as_i64(self) -> i64 {
+        match self {
+            Priority::Low => 0,
+            Priority::Normal => 1,
+            Priority::High => 2,
+        }
+    }
+
+    /// Unbekannte Werte aus der Datenbank gelten als normal, damit ein
+    /// kaputter Eintrag nie eine ganze Liste unlesbar macht.
+    pub fn from_i64(value: i64) -> Self {
+        match value {
+            0 => Priority::Low,
+            2 => Priority::High,
+            _ => Priority::Normal,
         }
     }
 }

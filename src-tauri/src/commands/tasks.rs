@@ -2,7 +2,9 @@ use chrono::{Duration, Local};
 use tauri::{AppHandle, State};
 
 use crate::db::models::{Task, TaskDraft, TaskEdit};
-use crate::db::{notification_history, settings as settings_repo, tasks as repo};
+use crate::db::{
+    labels as label_repo, notification_history, settings as settings_repo, tasks as repo,
+};
 use crate::domain::{time, validation};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -177,6 +179,57 @@ pub fn bulk_delete(
     let changed = state.db.with(|conn| repo::bulk_delete(conn, &ids))?;
     window::notify_data_changed(&app);
     Ok(changed)
+}
+
+/// Ersetzt die Labels einer Aufgabe vollständig.
+#[tauri::command]
+pub fn set_task_labels(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    label_ids: Vec<String>,
+) -> AppResult<Task> {
+    let task_id = validation::identifier(&task_id, "Task-ID")?;
+    for id in &label_ids {
+        validation::identifier(id, "Label-ID")?;
+    }
+
+    let task = state.db.with(|conn| {
+        repo::get(conn, &task_id)?;
+        label_repo::set_for_task(conn, &task_id, &label_ids)?;
+        repo::get(conn, &task_id)
+    })?;
+    window::notify_data_changed(&app);
+    Ok(task)
+}
+
+/// Zeigt, wann eine Wiederholungsregel als Naechstes zutrifft.
+///
+/// Die Vorschau kommt bewusst aus dem Backend: die Regel wird genau von dem
+/// Code ausgewertet, der spaeter auch die Folgeaufgaben anlegt. Eine zweite
+/// Implementierung im Frontend wuerde frueher oder spaeter abweichen.
+#[tauri::command]
+pub fn recurrence_preview(
+    rule: String,
+    from: String,
+    count: Option<u32>,
+) -> AppResult<Vec<String>> {
+    let parsed = crate::domain::recurrence::Recurrence::parse(&rule)?;
+    let start = time::parse_date(&from)
+        .ok_or_else(|| AppError::validation("Ungültiges Startdatum (erwartet YYYY-MM-DD)"))?;
+
+    let mut result = Vec::new();
+    let mut current = start;
+    for _ in 0..count.unwrap_or(5).clamp(1, 20) {
+        match parsed.next(current) {
+            Some(next) => {
+                result.push(time::format_date(next));
+                current = next;
+            }
+            None => break,
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]

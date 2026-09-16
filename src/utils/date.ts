@@ -1,4 +1,5 @@
 import type { Task } from '@/types';
+import { priorityRank } from '@/utils/priority';
 
 const WEEKDAYS = [
   'Sonntag',
@@ -91,13 +92,24 @@ export function bucketOf(task: Task, now: Date): Bucket {
   return 'later';
 }
 
+/**
+ * Sortiert nach Faelligkeit. Bei gleichem Termin entscheidet die Prioritaet,
+ * erst danach das Anlagedatum - so steht das Wichtige oben, ohne dass die
+ * Zeitachse durcheinandergeraet.
+ */
 export function compareTasks(left: Task, right: Task): number {
   const leftDue = dueTimestamp(left);
   const rightDue = dueTimestamp(right);
-  if (leftDue === null && rightDue === null) return left.createdAt.localeCompare(right.createdAt);
+  if (leftDue === null && rightDue === null) return byPriorityThenAge(left, right);
   if (leftDue === null) return 1;
   if (rightDue === null) return -1;
   if (leftDue !== rightDue) return leftDue - rightDue;
+  return byPriorityThenAge(left, right);
+}
+
+function byPriorityThenAge(left: Task, right: Task): number {
+  const difference = priorityRank(right.priority) - priorityRank(left.priority);
+  if (difference !== 0) return difference;
   return left.createdAt.localeCompare(right.createdAt);
 }
 

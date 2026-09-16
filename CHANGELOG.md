@@ -9,7 +9,49 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 ### Geplant
 
 - Code-Signing gegen die SmartScreen-Warnung
+- Wochenansicht mit Tageszeiten
+- Volltextsuche über SQLite FTS5
 - Getrennte Profile für Privat und Arbeit
+
+## [0.7.0] - 2026-09-16
+
+### Hinzugefügt
+
+- **Autosave und Verlauf**: Notizen speichern sich nach kurzer Ruhezeit von
+  selbst, der Zustand steht in der Fusszeile. Jede Änderung legt den alten Text
+  ab; die letzten 20 Fassungen lassen sich ansehen und zurückholen.
+- **Priorität und Labels für Aufgaben**: drei Stufen, dazu dieselben Labels wie
+  bei Notizen. Bei gleichem Termin steht das Wichtigere oben. Filter für „nur
+  wichtige" und nach Labels.
+- **Ursprungsnotiz öffnen**: Aufgaben aus einer Analyse führen zurück zu der
+  Notiz, aus der sie entstanden sind - aus der Liste und aus dem Dialog.
+- **Smart Inbox**: zeigt Notizen, die nie analysiert wurden oder bei denen die
+  Analyse scheiterte, und kann bis zu 25 davon in einem Durchgang nachholen.
+  Offene Bestätigungen kommen nacheinander statt alle auf einmal.
+- **Verständlicher Wiederholungs-Editor**: Wochentage zum Anklicken statt
+  `weekly:1:mo,we`, Auswahl für den Monatsletzten und eine Vorschau der nächsten
+  fünf Termine. Die Vorschau rechnet das Backend - dieselbe Stelle, die später
+  auch die Folgeaufgaben anlegt.
+- **Sicherung prüfen**: liest eine Sicherungsdatei, zeigt Inhalt und SHA-256,
+  ohne etwas zu verändern.
+- **Native Ordnerauswahl** für Sicherungsordner und Markdown-Import.
+- **Version überspringen**: ein Update, das nicht gewollt ist, meldet sich nicht
+  mehr beim Start. Eine neuere Version schon wieder.
+
+### Geändert
+
+- Durchgängig deutsche Bezeichnungen: „Aufgaben" statt „Tasks",
+  „Einstellungen" statt „Settings".
+- Die Notizsuche lädt erst nach einer kurzen Pause statt bei jedem Tastendruck.
+- Leere Ansichten bieten konkrete nächste Schritte statt nur eines Hinweises.
+- Serien vererben ihre Labels an die Folgeaufgabe.
+
+### Sicherheit
+
+- Unveränderter Notiztext erzeugt weder eine Version noch ein neues
+  Änderungsdatum - Autosave kann die Historie nicht zumüllen.
+- Die Sammelanalyse ist auf 25 Notizen je Durchgang begrenzt; jede Notiz ist ein
+  bezahlter API-Aufruf.
 
 ## [0.6.0] - 2026-09-15
 

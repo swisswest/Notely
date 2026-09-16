@@ -1,6 +1,6 @@
 import { TaskGroup } from '@/components/TaskGroup';
-import { EmptyState } from '@/components/ui';
-import { useStore } from '@/lib/store';
+import { Button, EmptyState } from '@/components/ui';
+import { requestNewNote, requestView, useStore } from '@/lib/store';
 import { useTaskActions } from '@/features/tasks/useTaskActions';
 import { bucketOf, compareTasks, groupByDay } from '@/utils/date';
 
@@ -8,6 +8,7 @@ const HORIZON_DAYS = 7;
 
 export function TodayView() {
   const tasks = useStore((state) => state.tasks);
+  const noteCount = useStore((state) => state.notes.length);
   const actions = useTaskActions();
   const now = new Date();
 
@@ -20,6 +21,8 @@ export function TodayView() {
   });
   const groups = groupByDay(upcoming, now).slice(0, HORIZON_DAYS);
   const nothingToShow = overdue.length === 0 && groups.length === 0;
+  // Unterscheidet "gerade nichts zu tun" von "noch gar nicht angefangen".
+  const hasAnything = tasks.length > 0 || noteCount > 0;
 
   return (
     <div className="main__body">
@@ -31,6 +34,7 @@ export function TodayView() {
         onEdit={actions.startEdit}
         onDelete={actions.remove}
         onSnooze={actions.snooze}
+        onOpenSource={actions.openSource}
       />
 
       {groups.map((group) => (
@@ -42,11 +46,35 @@ export function TodayView() {
           onEdit={actions.startEdit}
           onDelete={actions.remove}
           onSnooze={actions.snooze}
+          onOpenSource={actions.openSource}
         />
       ))}
 
       {nothingToShow ? (
-        <EmptyState>Nichts fällig. Neue Notiz mit Strg+N oder neuer Task mit Strg+T.</EmptyState>
+        <EmptyState>
+          <p style={{ margin: '0 0 10px' }}>
+            {hasAnything
+              ? 'Nichts fällig in den nächsten Tagen.'
+              : 'Noch nichts erfasst. Schreib einfach los - Claude macht daraus Aufgaben.'}
+          </p>
+          <span className="field__row" style={{ justifyContent: 'center' }}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                requestView('notes');
+                requestNewNote();
+              }}
+            >
+              Notiz schreiben
+            </Button>
+            <Button onClick={() => actions.startCreate()}>Aufgabe anlegen</Button>
+            {!hasAnything ? (
+              <Button variant="ghost" onClick={() => requestView('settings')}>
+                API-Key hinterlegen
+              </Button>
+            ) : null}
+          </span>
+        </EmptyState>
       ) : null}
     </div>
   );

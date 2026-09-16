@@ -4,6 +4,7 @@ import type { MouseEvent } from 'react';
 import { TaskGroup } from '@/components/TaskGroup';
 import { Button, EmptyState } from '@/components/ui';
 import { api } from '@/lib/ipc';
+import { LabelChip } from '@/components/LabelChip';
 import { run, useStore } from '@/lib/store';
 import { useTaskActions } from '@/features/tasks/useTaskActions';
 import type { Task } from '@/types';
@@ -25,13 +26,20 @@ export function TasksView() {
   const tasks = useStore((state) => state.tasks);
   const actions = useTaskActions();
   const [filter, setFilter] = useState<FilterId>('all');
+  const [onlyImportant, setOnlyImportant] = useState(false);
+  const [labelFilter, setLabelFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const labels = useStore((state) => state.labels);
   const now = new Date();
 
   const visible = useMemo(() => {
     const reference = new Date();
     return tasks
       .filter((task) => {
+        if (onlyImportant && task.priority !== 'high') return false;
+        if (labelFilter.length > 0 && !labelFilter.every((id) => task.labels.includes(id))) {
+          return false;
+        }
         const bucket = bucketOf(task, reference);
         if (filter === 'all') return !task.completed;
         if (filter === 'week') {
@@ -40,9 +48,9 @@ export function TasksView() {
         return bucket === filter;
       })
       .sort(compareTasks);
-  }, [tasks, filter]);
+  }, [tasks, filter, onlyImportant, labelFilter]);
 
-  const label = FILTERS.find((entry) => entry.id === filter)?.label ?? 'Tasks';
+  const label = FILTERS.find((entry) => entry.id === filter)?.label ?? 'Aufgaben';
   const selectedIds = [...selected].filter((id) => visible.some((task) => task.id === id));
 
   /** Klick wählt aus, Strg/Shift erweitern die Auswahl. */
@@ -98,7 +106,37 @@ export function TasksView() {
             {entry.label}
           </Button>
         ))}
+        <Button
+          variant={onlyImportant ? 'default' : 'ghost'}
+          title="Nur Aufgaben mit hoher Priorität"
+          onClick={() => {
+            setOnlyImportant((current) => !current);
+            clearSelection();
+          }}
+        >
+          Nur wichtige
+        </Button>
       </div>
+
+      {labels.length > 0 ? (
+        <div className="notes__label-filter" style={{ marginBottom: 4 }}>
+          {labels.map((entry) => (
+            <LabelChip
+              key={entry.id}
+              label={entry}
+              active={labelFilter.includes(entry.id)}
+              onClick={() => {
+                setLabelFilter((current) =>
+                  current.includes(entry.id)
+                    ? current.filter((id) => id !== entry.id)
+                    : [...current, entry.id],
+                );
+                clearSelection();
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <TaskGroup
         title={label}
@@ -108,11 +146,18 @@ export function TasksView() {
         onToggle={actions.toggle}
         onEdit={actions.startEdit}
         onDelete={actions.remove}
+        onOpenSource={actions.openSource}
         onSelect={handleSelect}
         {...(filter === 'completed' ? {} : { onSnooze: actions.snooze })}
       />
 
-      {visible.length === 0 ? <EmptyState>Keine Tasks in dieser Ansicht.</EmptyState> : null}
+      {visible.length === 0 ? (
+        <EmptyState>
+          {onlyImportant || labelFilter.length > 0
+            ? 'Keine Aufgabe passt zu diesen Filtern.'
+            : 'Keine Aufgabe in dieser Ansicht.'}
+        </EmptyState>
+      ) : null}
 
       {selectedIds.length > 0 ? (
         <div className="bulk-bar" role="toolbar" aria-label="Mehrfachauswahl">

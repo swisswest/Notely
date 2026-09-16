@@ -193,7 +193,15 @@ mod tests {
             )?;
 
             let bad = suggestion("Voellig daneben");
-            record(conn, Some("n2"), "m", "Notiz", Verdict::Rejected, &bad, None)?;
+            record(
+                conn,
+                Some("n2"),
+                "m",
+                "Notiz",
+                Verdict::Rejected,
+                &bad,
+                None,
+            )?;
 
             let result = summary(conn, MAX_MISSES)?;
             assert_eq!(result.total.accepted, 1);
@@ -210,7 +218,10 @@ mod tests {
                 .collect();
             assert_eq!(titles, vec!["Voellig daneben", "Falsche Zeit"]);
             assert_eq!(
-                result.misses[1].corrected.as_ref().map(|s| s.due_time.clone()),
+                result.misses[1]
+                    .corrected
+                    .as_ref()
+                    .map(|s| s.due_time.clone()),
                 Some(Some("09:00".into()))
             );
             Ok(())

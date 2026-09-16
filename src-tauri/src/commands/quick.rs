@@ -105,6 +105,7 @@ pub async fn quick_capture(
             ai_generated: true,
             confidence: Some(suggestion.confidence),
             recurrence: None,
+            priority: Default::default(),
         })?;
 
         match state.db.with(|conn| task_repo::create(conn, &draft)) {

@@ -4,7 +4,9 @@ import type {
   AnalysisResult,
   AppSettings,
   AppStatus,
+  BackupCheck,
   BackupInfo,
+  BatchAnalysis,
   CompletionResult,
   ConnectionTest,
   FeedbackSummary,
@@ -14,6 +16,7 @@ import type {
   MarkdownImportSummary,
   ModelInfo,
   Note,
+  NoteVersion,
   QuickResult,
   ReviewStatus,
   SearchResults,
@@ -91,6 +94,11 @@ export const api = {
     setLabels: (noteId: string, labelIds: string[]) =>
       call<Note>('set_note_labels', { noteId, labelIds }),
     tasks: (noteId: string) => call<Task[]>('tasks_for_note', { noteId }),
+    needingAttention: (limit?: number) =>
+      call<Note[]>('notes_needing_attention', { limit: limit ?? null }),
+    versions: (noteId: string) => call<NoteVersion[]>('note_versions', { noteId }),
+    restoreVersion: (noteId: string, versionId: number) =>
+      call<Note>('restore_note_version', { noteId, versionId }),
   },
   folders: {
     list: () => call<Folder[]>('list_folders'),
@@ -121,6 +129,10 @@ export const api = {
     bulkReschedule: (ids: string[], dueDate: string | null, dueTime: string | null) =>
       call<number>('bulk_reschedule', { ids, dueDate, dueTime }),
     bulkDelete: (ids: string[]) => call<number>('bulk_delete', { ids }),
+    setLabels: (taskId: string, labelIds: string[]) =>
+      call<Task>('set_task_labels', { taskId, labelIds }),
+    recurrencePreview: (rule: string, from: string, count?: number) =>
+      call<string[]>('recurrence_preview', { rule, from, count: count ?? null }),
   },
   trash: {
     list: () => call<TrashContents>('list_trash'),
@@ -134,6 +146,7 @@ export const api = {
     call<SearchResults>('search', { term, limit: limit ?? null }),
   ai: {
     analyze: (noteId: string) => call<AnalysisResult>('analyze_note', { noteId }),
+    analyzeMany: (noteIds: string[]) => call<BatchAnalysis>('analyze_notes', { noteIds }),
     createFromSuggestions: (noteId: string, decisions: SuggestionDecision[]) =>
       call<Task[]>('create_tasks_from_suggestions', { noteId, decisions }),
     feedback: () => call<FeedbackSummary>('ai_feedback_summary'),
@@ -142,6 +155,7 @@ export const api = {
   updates: {
     check: () => call<UpdateInfo>('check_for_update'),
     install: () => call<void>('install_update'),
+    skip: (version: string) => call<void>('skip_update_version', { version }),
   },
   settings: {
     status: () => call<AppStatus>('get_status'),
@@ -158,6 +172,7 @@ export const api = {
     now: () => call<BackupInfo>('backup_now'),
     list: () => call<BackupInfo[]>('list_backups'),
     import: (fileName: string) => call<ImportSummary>('import_backup', { fileName }),
+    verify: (fileName: string) => call<BackupCheck>('verify_backup', { fileName }),
     exportMarkdown: () => call<BackupInfo>('export_markdown'),
     importMarkdown: (directory: string, folderId: string | null) =>
       call<MarkdownImportSummary>('import_markdown', { directory, folderId }),
@@ -180,6 +195,7 @@ export const api = {
     reportTimezone: (timezone: string) => call<void>('report_timezone', { timezone }),
     completeOnboarding: (autostart: boolean) => call<void>('complete_onboarding', { autostart }),
     logFilePath: () => call<string>('log_file_path'),
+    pickDirectory: () => call<string | null>('pick_directory'),
   },
 };
 

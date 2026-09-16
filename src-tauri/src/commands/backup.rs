@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, State};
 
-use crate::backup::{self, BackupInfo, ImportSummary, MarkdownImportSummary};
+use crate::backup::{self, BackupCheck, BackupInfo, ImportSummary, MarkdownImportSummary};
 use crate::db::settings as settings_repo;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -47,6 +47,20 @@ pub fn backup_now(app: AppHandle, state: State<'_, AppState>) -> AppResult<Backu
 #[tauri::command]
 pub fn list_backups(app: AppHandle, state: State<'_, AppState>) -> AppResult<Vec<BackupInfo>> {
     backup::list(&target_dir(&app, &state)?)
+}
+
+/// Prüft eine Sicherung, ohne sie einzuspielen. Zeigt Inhalt und
+/// Prüfsumme - so lässt sich vor dem Ernstfall feststellen, ob die Datei
+/// überhaupt noch brauchbar ist.
+#[tauri::command]
+pub fn verify_backup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    file_name: String,
+) -> AppResult<BackupCheck> {
+    let name = backup::safe_file_name(&file_name)?;
+    let path = target_dir(&app, &state)?.join(name);
+    backup::verify(&path)
 }
 
 /// Führt eine Sicherung mit dem Bestand zusammen. Bestehende Einträge

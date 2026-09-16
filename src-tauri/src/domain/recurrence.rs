@@ -218,7 +218,10 @@ impl Recurrence {
             _ => {}
         }
         if let Some(until) = self.until {
-            rule.push_str(&format!("|until:{}", crate::domain::time::format_date(until)));
+            rule.push_str(&format!(
+                "|until:{}",
+                crate::domain::time::format_date(until)
+            ));
         }
         rule
     }
@@ -230,9 +233,9 @@ impl Recurrence {
     /// deshalb rutscht eine Serie am 31. nicht dauerhaft auf den 28.
     pub fn next(&self, current: NaiveDate) -> Option<NaiveDate> {
         let candidate = match self.unit {
-            Unit::Daily => current.checked_add_signed(chrono::Duration::days(i64::from(
-                self.interval,
-            )))?,
+            Unit::Daily => {
+                current.checked_add_signed(chrono::Duration::days(i64::from(self.interval)))?
+            }
             Unit::Weekly => self.next_weekly(current)?,
             Unit::Monthly => self.next_monthly(current)?,
             Unit::Yearly => self.next_yearly(current)?,
@@ -334,8 +337,14 @@ mod tests {
     #[test]
     fn weekly_without_weekdays_keeps_the_weekday() {
         // 2026-09-15 ist ein Dienstag.
-        assert_eq!(next("weekly:1", "2026-09-15").as_deref(), Some("2026-09-22"));
-        assert_eq!(next("weekly:2", "2026-09-15").as_deref(), Some("2026-09-29"));
+        assert_eq!(
+            next("weekly:1", "2026-09-15").as_deref(),
+            Some("2026-09-22")
+        );
+        assert_eq!(
+            next("weekly:2", "2026-09-15").as_deref(),
+            Some("2026-09-29")
+        );
     }
 
     #[test]
@@ -402,7 +411,10 @@ mod tests {
 
     #[test]
     fn until_ends_the_series() {
-        assert_eq!(next("daily:1|until:2026-09-16", "2026-09-15").as_deref(), Some("2026-09-16"));
+        assert_eq!(
+            next("daily:1|until:2026-09-16", "2026-09-15").as_deref(),
+            Some("2026-09-16")
+        );
         assert_eq!(next("daily:1|until:2026-09-16", "2026-09-16"), None);
     }
 

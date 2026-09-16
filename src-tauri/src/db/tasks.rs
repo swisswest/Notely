@@ -1,12 +1,13 @@
 use rusqlite::{params, Connection, Row, ToSql};
 
-use super::models::{Task, TaskDraft, TaskEdit};
+use super::labels;
+use super::models::{Priority, Task, TaskDraft, TaskEdit};
 use super::{new_id, now_utc};
 use crate::error::{AppError, AppResult};
 
 const COLUMNS: &str = "id, title, description, created_at, updated_at, due_date, due_time,
                        completed, completed_at, source_note_id, ai_generated, confidence,
-                       snoozed_until, deleted_at, recurrence, series_id";
+                       snoozed_until, deleted_at, recurrence, series_id, priority";
 
 pub const MAX_BULK: usize = 500;
 
@@ -28,7 +29,22 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Task> {
         deleted_at: row.get(13)?,
         recurrence: row.get(14)?,
         series_id: row.get(15)?,
+        priority: Priority::from_i64(row.get(16)?),
+        labels: Vec::new(),
     })
+}
+
+/// Haengt die Label-IDs an eine Liste. Eine Abfrage statt N - die
+/// Zuordnungstabelle ist klein.
+fn attach_labels(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
+    if tasks.is_empty() {
+        return Ok(());
+    }
+    let mut by_task = labels::by_task(conn)?;
+    for task in tasks.iter_mut() {
+        task.labels = by_task.remove(&task.id).unwrap_or_default();
+    }
+    Ok(())
 }
 
 pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
@@ -40,8 +56,9 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
     conn.execute(
         "INSERT INTO tasks
            (id, title, description, created_at, updated_at, due_date, due_time,
-            completed, source_note_id, ai_generated, confidence, recurrence, series_id)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11)",
+            completed, source_note_id, ai_generated, confidence, recurrence, series_id,
+            priority)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             id,
             draft.title,
@@ -54,6 +71,7 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
             draft.confidence,
             draft.recurrence,
             series_id,
+            draft.priority.as_i64(),
         ],
     )?;
     get(conn, &id)
@@ -61,11 +79,14 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
 
 pub fn get(conn: &Connection, id: &str) -> AppResult<Task> {
     let sql = format!("SELECT {COLUMNS} FROM tasks WHERE id = ?1");
-    conn.query_row(&sql, params![id], map)
+    let mut task = conn
+        .query_row(&sql, params![id], map)
         .map_err(|err| match err {
             rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(format!("Task {id}")),
-            other => other.into(),
-        })
+            other => AppError::from(other),
+        })?;
+    task.labels = labels::by_task(conn)?.remove(id).unwrap_or_default();
+    Ok(task)
 }
 
 /// Offene Tasks vollständig, erledigte nur begrenzt - die Oberfläche
@@ -79,7 +100,8 @@ pub fn list(
 
     let open_sql = format!(
         "SELECT {COLUMNS} FROM tasks WHERE completed = 0 AND deleted_at IS NULL
-         ORDER BY due_date IS NULL, due_date ASC, due_time IS NULL, due_time ASC, created_at ASC"
+         ORDER BY due_date IS NULL, due_date ASC, due_time IS NULL, due_time ASC,
+                  priority DESC, created_at ASC"
     );
     let mut stmt = conn.prepare(&open_sql)?;
     for row in stmt.query_map([], map)? {
@@ -97,6 +119,7 @@ pub fn list(
         }
     }
 
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -110,6 +133,7 @@ pub fn list_by_note(conn: &Connection, note_id: &str) -> AppResult<Vec<Task>> {
     for row in stmt.query_map(params![note_id], map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -137,6 +161,7 @@ pub fn list_all(conn: &Connection) -> AppResult<Vec<Task>> {
     for row in stmt.query_map([], map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -150,6 +175,7 @@ pub fn list_deleted(conn: &Connection, limit: u32) -> AppResult<Vec<Task>> {
     for row in stmt.query_map(params![limit.clamp(1, 1000)], map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -176,6 +202,7 @@ pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Task>>
     for row in stmt.query_map(params![escaped, limit.clamp(1, 100)], map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -191,7 +218,7 @@ pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
     let changed = conn.execute(
         "UPDATE tasks
             SET title = ?2, description = ?3, due_date = ?4, due_time = ?5,
-                recurrence = ?6, series_id = ?7, updated_at = ?8
+                recurrence = ?6, series_id = ?7, priority = ?8, updated_at = ?9
           WHERE id = ?1 AND deleted_at IS NULL",
         params![
             edit.id,
@@ -201,6 +228,7 @@ pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
             edit.due_time,
             edit.recurrence,
             series_id,
+            edit.priority.as_i64(),
             now_utc()
         ],
     )?;
@@ -278,8 +306,9 @@ pub fn advance_series(conn: &Connection, task: &Task) -> AppResult<Option<Task>>
     conn.execute(
         "INSERT INTO tasks
            (id, title, description, created_at, updated_at, due_date, due_time,
-            completed, source_note_id, ai_generated, confidence, recurrence, series_id)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11)",
+            completed, source_note_id, ai_generated, confidence, recurrence, series_id,
+            priority)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             id,
             task.title,
@@ -292,8 +321,16 @@ pub fn advance_series(conn: &Connection, task: &Task) -> AppResult<Option<Task>>
             task.confidence,
             rule.to_rule(),
             series_id,
+            task.priority.as_i64(),
         ],
     )?;
+
+    // Die Folgeaufgabe erbt auch die Labels - sonst waere die Serie nach dem
+    // ersten Abhaken nicht mehr wiederzufinden.
+    let inherited = labels::by_task(conn)?.remove(&task.id).unwrap_or_default();
+    if !inherited.is_empty() {
+        labels::set_for_task(conn, &id, &inherited)?;
+    }
 
     get(conn, &id).map(Some)
 }
@@ -416,6 +453,7 @@ pub fn list_due_on(conn: &Connection, date: &str) -> AppResult<Vec<Task>> {
     for row in stmt.query_map(params![date], map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -437,6 +475,7 @@ pub fn by_ids(conn: &Connection, ids: &[String]) -> AppResult<Vec<Task>> {
     for row in stmt.query_map(values.as_slice(), map)? {
         result.push(row?);
     }
+    attach_labels(conn, &mut result)?;
     Ok(result)
 }
 
@@ -455,6 +494,7 @@ mod tests {
             ai_generated: false,
             confidence: None,
             recurrence: None,
+            priority: Default::default(),
         }
     }
 
@@ -587,7 +627,10 @@ mod tests {
     fn completing_a_series_creates_exactly_one_follow_up() {
         let db = Db::open_in_memory().expect("db");
         db.with(|conn| {
-            let task = create(conn, &repeating("Muell rausstellen", "2026-09-15", "weekly:1"))?;
+            let task = create(
+                conn,
+                &repeating("Muell rausstellen", "2026-09-15", "weekly:1"),
+            )?;
             assert!(task.series_id.is_some());
 
             let done = set_completed(conn, &task.id, true)?;
@@ -663,6 +706,7 @@ mod tests {
                     due_date: Some("2026-09-15".into()),
                     due_time: None,
                     recurrence: Some("monthly:1".into()),
+                    priority: Default::default(),
                 },
             )?;
             assert!(updated.series_id.is_some());
@@ -677,6 +721,7 @@ mod tests {
                     due_date: Some("2026-09-15".into()),
                     due_time: None,
                     recurrence: Some("monthly:2".into()),
+                    priority: Default::default(),
                 },
             )?;
             assert_eq!(again.series_id, updated.series_id);
@@ -722,6 +767,7 @@ mod tests {
                     due_date: Some("2026-09-12".into()),
                     due_time: Some("09:00".into()),
                     recurrence: None,
+                    priority: Default::default(),
                 },
             )?;
 

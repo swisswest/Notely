@@ -117,6 +117,9 @@ pub struct UpdateSettings {
     /// Letzte Version, auf die hingewiesen wurde - verhindert, dass derselbe
     /// Hinweis bei jedem Start erscheint.
     pub last_seen_version: Option<String>,
+    /// Bewusst uebersprungene Version. Wird beim Start nie gemeldet; eine
+    /// neuere Version danach schon wieder.
+    pub skipped_version: Option<String>,
 }
 
 impl Default for UpdateSettings {
@@ -124,6 +127,7 @@ impl Default for UpdateSettings {
         Self {
             check_on_start: true,
             last_seen_version: None,
+            skipped_version: None,
         }
     }
 }
@@ -375,7 +379,13 @@ impl AppSettings {
             ));
         }
         // Kommt zwar vom Backend, geht aber ueber das Frontend zurueck.
-        if let Some(version) = self.updates.last_seen_version.as_deref() {
+        for version in [
+            self.updates.last_seen_version.as_deref(),
+            self.updates.skipped_version.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
             if version.len() > 40 {
                 return Err(AppError::validation("Versionsangabe ist ungültig"));
             }
