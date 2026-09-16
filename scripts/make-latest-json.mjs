@@ -1,4 +1,4 @@
-**
+/**
  * Erzeugt die `latest.json`, die der Tauri-Updater abfragt.
  *
  * Tauri legt beim Release-Build ein signiertes Archiv und die zugehoerige
