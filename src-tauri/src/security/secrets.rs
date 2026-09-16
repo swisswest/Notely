@@ -2,7 +2,12 @@ use keyring::Entry;
 
 use crate::error::{AppError, AppResult};
 
-const SERVICE: &str = "ch.westcon.notely";
+/// So heisst der Eintrag im Windows Credential Manager. Bewusst lesbar - das
+/// ist die einzige Stelle, an der ein Benutzer dem Namen jemals begegnet.
+const SERVICE: &str = "Notely";
+/// Frueherer Name. Wird nur noch gelesen, damit ein bestehender Key beim
+/// ersten Zugriff automatisch mitwandert.
+const LEGACY_SERVICE: &str = "ch.westcon.notely";
 const ACCOUNT: &str = "claude-api-key";
 const MIN_KEY_LENGTH: usize = 20;
 const MAX_KEY_LENGTH: usize = 512;
@@ -14,6 +19,30 @@ pub struct SecretStore;
 impl SecretStore {
     fn entry() -> AppResult<Entry> {
         Entry::new(SERVICE, ACCOUNT).map_err(|err| AppError::SecretStore(err.to_string()))
+    }
+
+    fn legacy_entry() -> AppResult<Entry> {
+        Entry::new(LEGACY_SERVICE, ACCOUNT).map_err(|err| AppError::SecretStore(err.to_string()))
+    }
+
+    /// Holt einen Key aus dem alten Eintrag und legt ihn unter dem neuen Namen
+    /// ab. Der alte Eintrag wird geleert, nicht geloescht - so bleibt das
+    /// Verhalten identisch zu `clear_api_key` und es gibt keinen Pfad, auf dem
+    /// der Key doppelt herumliegt.
+    fn adopt_legacy_key() -> AppResult<Option<String>> {
+        let value = match Self::legacy_entry()?.get_password() {
+            Ok(value) if !value.trim().is_empty() => value,
+            Ok(_) => return Ok(None),
+            Err(keyring::Error::NoEntry) => return Ok(None),
+            Err(err) => return Err(AppError::SecretStore(err.to_string())),
+        };
+
+        Self::entry()?
+            .set_password(&value)
+            .map_err(|err| AppError::SecretStore(err.to_string()))?;
+        let _ = Self::legacy_entry()?.set_password("");
+        crate::logging::info("security", "API-Key in den neuen Eintrag uebernommen");
+        Ok(Some(value))
     }
 
     pub fn set_api_key(value: &str) -> AppResult<()> {
@@ -34,9 +63,11 @@ impl SecretStore {
 
     pub fn api_key() -> AppResult<Option<String>> {
         match Self::entry()?.get_password() {
+            // Leer heisst "bewusst entfernt" - dann wird der alte Eintrag
+            // nicht wieder hervorgeholt.
             Ok(value) if value.trim().is_empty() => Ok(None),
             Ok(value) => Ok(Some(value)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring::Error::NoEntry) => Self::adopt_legacy_key(),
             Err(err) => Err(AppError::SecretStore(err.to_string())),
         }
     }

@@ -90,9 +90,5 @@ pub async fn pick_directory(app: AppHandle) -> AppResult<Option<String>> {
 
 #[tauri::command]
 pub fn log_file_path(app: AppHandle) -> AppResult<String> {
-    let dir = app
-        .path()
-        .app_log_dir()
-        .map_err(|err| AppError::Internal(format!("Log-Verzeichnis unbekannt: {err}")))?;
-    Ok(dir.join("notely.log").to_string_lossy().to_string())
+    Ok(crate::paths::log_file(&app)?.to_string_lossy().to_string())
 }

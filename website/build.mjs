@@ -292,7 +292,7 @@ function renderHome({ latest, roadmap }) {
     ['Warum warnt Windows beim Installieren?', 'Der Installer ist derzeit nicht code-signiert. SmartScreen zeigt deshalb „Unbekannter Herausgeber". Klicke auf <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Die SHA-256-Prüfsumme jeder Datei findest du auf der <a href="versionen/">Versionsseite</a>. Code-Signing steht auf der Roadmap.'],
     ['Brauche ich Adminrechte?', 'Nein. Notely installiert sich ins Benutzerprofil.'],
     ['Wie aktualisiere ich?', 'Neuen Installer herunterladen und ausführen – er ersetzt die installierte Version, deine Daten bleiben erhalten. Automatische Updates sind in Planung.'],
-    ['Wo liegen meine Daten?', 'Ausschliesslich lokal unter <code>%APPDATA%\\ch.westcon.notely</code>. Kein Konto, keine Cloud, keine Telemetrie.'],
+    ['Wo liegen meine Daten?', 'Ausschliesslich lokal unter <code>%APPDATA%\\Notely</code>, die Logdatei unter <code>%LOCALAPPDATA%\\Notely\\logs</code>. Kein Konto, keine Cloud, keine Telemetrie.'],
   ];
 
   const body = `

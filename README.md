@@ -161,7 +161,7 @@ Details und Meldeweg: [SECURITY.md](SECURITY.md).
 ## Datenschutz
 
 Notizen, Aufgaben und Einstellungen liegen ausschliesslich lokal in
-`%APPDATA%\ch.westcon.notely`. Bei einer Analyse wird der Text der jeweiligen
+`%APPDATA%\Notely`. Bei einer Analyse wird der Text der jeweiligen
 Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 
 ## Tastatur

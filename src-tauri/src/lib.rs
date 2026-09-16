@@ -6,6 +6,7 @@ pub mod domain;
 pub mod error;
 pub mod logging;
 pub mod notifications;
+pub mod paths;
 pub mod quick;
 pub mod security;
 pub mod startup;
@@ -19,8 +20,6 @@ use tauri_plugin_autostart::MacosLauncher;
 use crate::ai::ClaudeClient;
 use crate::db::{settings as settings_repo, Db};
 use crate::state::AppState;
-
-const DATABASE_FILE: &str = "notely.db";
 
 pub fn run() {
     tauri::Builder::default()
@@ -38,13 +37,13 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
-            if let Ok(log_dir) = handle.path().app_log_dir() {
+            if let Ok(log_dir) = paths::log_dir(&handle) {
                 logging::init(&log_dir);
             }
             logging::info("app", "Notely startet");
 
-            let data_dir = handle.path().app_data_dir()?;
-            let db = Db::open(&data_dir.join(DATABASE_FILE))?;
+            let data_dir = paths::data_dir(&handle)?;
+            let db = Db::open(&data_dir.join(paths::DATABASE_FILE))?;
             let settings = db.with(settings_repo::load)?;
 
             // Abgelaufene Papierkorb-Einträge verschwinden beim Start.

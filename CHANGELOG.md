@@ -13,6 +13,25 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 - Volltextsuche über SQLite FTS5
 - Getrennte Profile für Privat und Arbeit
 
+## [0.7.1] - 2026-09-16
+
+### Geändert
+
+- Der Datenordner heisst jetzt `%APPDATA%\Notely` statt `%APPDATA%\ch.westcon.notely`,
+  die Logdatei liegt unter `%LOCALAPPDATA%\Notely\logs`. Ein vorhandener
+  Bestand zieht beim ersten Start automatisch mit um, samt der beiden
+  SQLite-Begleitdateien. Scheitert der Umzug, bleibt alles am alten Ort und die
+  App läuft dort weiter - ein halb verschobener Datenbestand wäre schlimmer als
+  ein hässlicher Ordnername.
+- Der Eintrag im Windows Credential Manager heisst „Notely". Ein bestehender
+  Key wird beim ersten Zugriff übernommen; neu eingeben muss man nichts.
+
+### Hinweis
+
+- Der technische Bezeichner bleibt `ch.westcon.notely`. An ihm hängen der
+  Updater, die AUMID der Benachrichtigungen und die Zuordnung des Installers.
+  Ihn zu ändern hiesse: keine Updates mehr für bestehende Installationen.
+
 ## [0.7.0] - 2026-09-16
 
 ### Hinzugefügt
