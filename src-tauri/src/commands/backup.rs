@@ -26,7 +26,7 @@ pub fn backup_directory(app: AppHandle, state: State<'_, AppState>) -> AppResult
 pub fn backup_now(app: AppHandle, state: State<'_, AppState>) -> AppResult<BackupInfo> {
     let dir = target_dir(&app, &state)?;
     let version = app.package_info().version.to_string();
-    let info = backup::write(&state.db, &version, &dir)?;
+    let info = backup::write(&state.db, &version, &state.profile, &dir)?;
 
     state.db.with(|conn| {
         let mut settings = settings_repo::load(conn)?;
@@ -65,15 +65,24 @@ pub fn verify_backup(
 
 /// Führt eine Sicherung mit dem Bestand zusammen. Bestehende Einträge
 /// bleiben unverändert - es kann nichts überschrieben werden.
+///
+/// `allow_foreign` ist die einmalige Bestätigung für eine Sicherung aus einem
+/// anderen Profil. Ohne sie bricht der Import ab.
 #[tauri::command]
 pub fn import_backup(
     app: AppHandle,
     state: State<'_, AppState>,
     file_name: String,
+    allow_foreign: Option<bool>,
 ) -> AppResult<ImportSummary> {
     let name = backup::safe_file_name(&file_name)?;
     let path = target_dir(&app, &state)?.join(name);
-    let summary = backup::import(&state.db, &path)?;
+    let summary = backup::import(
+        &state.db,
+        &path,
+        &state.profile,
+        allow_foreign.unwrap_or(false),
+    )?;
     window::notify_data_changed(&app);
     Ok(summary)
 }

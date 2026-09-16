@@ -7,6 +7,7 @@ pub mod error;
 pub mod logging;
 pub mod notifications;
 pub mod paths;
+pub mod profiles;
 pub mod quick;
 pub mod security;
 pub mod startup;
@@ -43,7 +44,11 @@ pub fn run() {
             logging::info("app", "Notely startet");
 
             let data_dir = paths::data_dir(&handle)?;
-            let db = Db::open(&data_dir.join(paths::DATABASE_FILE))?;
+            // Jedes Profil hat seine eigene Datenbankdatei. Welche geladen wird,
+            // steht im Profilverzeichnis - gewechselt wird nur beim Start.
+            let (registry, database) = profiles::ensure(&data_dir)?;
+            logging::info("app", format!("Profil {} aktiv", registry.active));
+            let db = Db::open(&database)?;
             let settings = db.with(settings_repo::load)?;
 
             // Abgelaufene Papierkorb-Einträge verschwinden beim Start.
@@ -61,7 +66,7 @@ pub fn run() {
             }
 
             let claude = ClaudeClient::new()?;
-            app.manage(AppState::new(db, claude));
+            app.manage(AppState::new(db, claude, registry.active.clone()));
 
             if let Err(err) = tray::setup(&handle) {
                 logging::error("app", format!("Tray nicht initialisierbar: {err}"));
@@ -208,6 +213,11 @@ pub fn run() {
             commands::tasks::recurrence_preview,
             commands::system::pick_directory,
             commands::backup::verify_backup,
+            commands::profiles::list_profiles,
+            commands::profiles::create_profile,
+            commands::profiles::rename_profile,
+            commands::profiles::remove_profile,
+            commands::profiles::switch_profile,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");
@@ -265,7 +275,7 @@ fn run_startup_backup(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
     let dir = backup::resolve_dir(app.path().document_dir().ok(), &settings)?;
     let version = app.package_info().version.to_string();
 
-    backup::write(&state.db, &version, &dir)?;
+    backup::write(&state.db, &version, &state.profile, &dir)?;
     backup::prune(&dir, settings.backup.keep)?;
 
     state.db.with(|conn| {

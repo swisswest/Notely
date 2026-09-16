@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button, Checkbox, Field, TextInput } from '@/components/ui';
-import { api } from '@/lib/ipc';
+import { BackendError, api } from '@/lib/ipc';
 import { refreshAll, refreshStatus, reportError, showToast, useStore } from '@/lib/store';
 import type { AppSettings, BackupCheck, BackupInfo } from '@/types';
 import { formatDateTime } from '@/utils/date';
@@ -25,6 +25,12 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
   const [importPath, setImportPath] = useState('');
   const [importFolder, setImportFolder] = useState('');
   const [check, setCheck] = useState<BackupCheck | null>(null);
+  /**
+   * Eine Sicherung aus einem anderen Profil lehnt das Backend ab. Statt den
+   * Fehler nur zu melden, merken wir uns die Datei und fragen einmal nach -
+   * danach ist es eine Entscheidung und kein Versehen.
+   */
+  const [foreign, setForeign] = useState<{ fileName: string; message: string } | null>(null);
   const folders = useStore((state) => state.folders);
 
   /** Oeffnet den Windows-Ordnerdialog und uebernimmt die Auswahl. */
@@ -103,17 +109,27 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
     }
   };
 
-  const importBackup = async (fileName: string) => {
+  const importBackup = async (fileName: string, allowForeign = false) => {
     setBusy(true);
     try {
-      const summary = await api.backup.import(fileName);
+      const summary = await api.backup.import(fileName, allowForeign);
+      setForeign(null);
       showToast({
         kind: 'success',
         message: `Importiert: ${summary.notes} Notizen, ${summary.tasks} Aufgaben, ${summary.skipped} bereits vorhanden`,
       });
       await refreshAll();
     } catch (error) {
-      reportError(error);
+      if (
+        !allowForeign &&
+        error instanceof BackendError &&
+        error.code === 'VALIDATION_ERROR' &&
+        error.message.includes('Profil')
+      ) {
+        setForeign({ fileName, message: error.message });
+      } else {
+        reportError(error);
+      }
     } finally {
       setBusy(false);
     }
@@ -360,15 +376,34 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
                 {check.ok ? (
                   <p className="field__hint">
                     {check.notes} Notizen · {check.tasks} Aufgaben · {check.folders} Ordner ·{' '}
-                    {check.labels} Labels · aus Version {check.appVersion || 'unbekannt'}
+                    {check.labels} Labels · aus Version {check.appVersion || 'unbekannt'} ·{' '}
+                    {check.profile ? `Profil ${check.profile}` : 'ohne Profil (vor Version 0.8)'}
                   </p>
                 ) : null}
                 <p className="field__hint">SHA-256: {check.sha256}</p>
               </div>
             ) : null}
+            {foreign ? (
+              <div className="check" data-ok={false}>
+                <p className="miss__line">{foreign.message}</p>
+                <span className="field__row">
+                  <Button
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() => void importBackup(foreign.fileName, true)}
+                  >
+                    Trotzdem hier einspielen
+                  </Button>
+                  <Button variant="ghost" onClick={() => setForeign(null)}>
+                    Abbrechen
+                  </Button>
+                </span>
+              </div>
+            ) : null}
+
             <p className="field__hint" style={{ marginTop: 8 }}>
               Wiederherstellen ergänzt fehlende Einträge. Vorhandene Notizen und Tasks werden nie
-              überschrieben oder gelöscht.
+              überschrieben oder gelöscht. Sicherungen aus einem anderen Profil fragen einmal nach.
             </p>
           </>
         ) : null}

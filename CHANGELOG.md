@@ -9,9 +9,37 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 ### Geplant
 
 - Code-Signing gegen die SmartScreen-Warnung
-- Wochenansicht mit Tageszeiten
 - Volltextsuche über SQLite FTS5
-- Getrennte Profile für Privat und Arbeit
+
+## [0.8.0] - 2026-09-16
+
+### Neu
+
+- **Getrennte Profile.** Privat und Arbeit liegen in getrennten Datenbanken -
+  eigene Notizen, Aufgaben, Ordner, Labels und Einstellungen. Der API-Key gilt
+  weiterhin für das Programm, nicht für ein Profil; er liegt unverändert im
+  Windows Credential Manager. Gewechselt wird über die Seitenleiste, das
+  Tray-Menü oder die Einstellungen. Ein Wechsel startet Notely neu: die
+  Datenbankverbindung im laufenden Betrieb auszutauschen hiesse, sie in jedem
+  einzelnen Befehl austauschbar zu machen - eine Sekunde Neustart ist der
+  Preis dafür, dass keine Abfrage je die Daten des anderen Profils sieht.
+  Bestehende Daten werden beim ersten Start zum Profil „Privat".
+- **Wochenansicht** (Strg+5). Sieben Tagesspalten plus eine Spalte für alles
+  ohne Termin, innerhalb eines Tages gegliedert nach den eigenen Tageszeiten.
+  Aufgaben lassen sich ziehen; ohne Maus geht es mit Tab zur Karte und dann
+  ← → für den Tag, ↑ ↓ für die Tageszeit, Enter zum Bearbeiten, Leertaste zum
+  Abhaken. Die Zeiten kommen aus den Einstellungen - die Ansicht erfindet
+  keine eigenen.
+
+### Geändert
+
+- Sicherungen tragen das Profil im Dateinamen und im Inhalt. Eine Sicherung
+  aus einem anderen Profil lässt sich nicht versehentlich einspielen: der
+  Import bricht ab und fragt einmal nach. Sicherungen aus Versionen vor 0.8
+  haben kein Profil und werden ohne Nachfrage übernommen.
+- Entfernte Profile werden nicht gelöscht. Der Ordner wandert nach
+  `profiles\_entfernt\` im Datenordner - eine Datenbank ist nichts, was man
+  auf Knopfdruck unwiederbringlich wegwerfen können sollte.
 
 ## [0.7.1] - 2026-09-16
 
@@ -177,7 +205,11 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
   konfigurierbare Tageszeiten, Windows-Benachrichtigungen mit Dublettenschutz,
   Tray-Icon, Autostart, Einstellungen, SQLite mit Migrationen.
 
-[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.5.0...HEAD
+[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/swisswest/Notely/releases/tag/v0.8.0
+[0.7.1]: https://github.com/swisswest/Notely/releases/tag/v0.7.1
+[0.7.0]: https://github.com/swisswest/Notely/releases/tag/v0.7.0
+[0.6.0]: https://github.com/swisswest/Notely/releases/tag/v0.6.0
 [0.5.0]: https://github.com/swisswest/Notely/releases/tag/v0.5.0
 [0.4.0]: https://github.com/swisswest/Notely/releases/tag/v0.4.0
 [0.3.0]: https://github.com/swisswest/Notely/releases/tag/v0.3.0

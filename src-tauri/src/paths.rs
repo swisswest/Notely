@@ -66,7 +66,7 @@ pub fn data_dir(app: &AppHandle) -> AppResult<PathBuf> {
         return Ok(target);
     }
 
-    match move_database(&legacy, &target) {
+    match move_database_files(&legacy, &target) {
         Ok(count) => {
             logging::info(
                 "app",
@@ -105,7 +105,7 @@ pub fn log_file(app: &AppHandle) -> AppResult<PathBuf> {
 /// Verschiebt Datenbank samt Begleitdateien. Geht ein Schritt schief, werden
 /// die bereits verschobenen Dateien zurueckgelegt - danach ist der Zustand
 /// wieder genau der vorherige.
-fn move_database(from: &Path, to: &Path) -> std::io::Result<usize> {
+pub fn move_database_files(from: &Path, to: &Path) -> std::io::Result<usize> {
     fs::create_dir_all(to)?;
 
     let mut done: Vec<(PathBuf, PathBuf)> = Vec::new();
@@ -164,7 +164,7 @@ mod tests {
             fs::write(from.join(name), name).expect("datei");
         }
 
-        assert_eq!(move_database(&from, &to).expect("umzug"), 3);
+        assert_eq!(move_database_files(&from, &to).expect("umzug"), 3);
         for name in DATABASE_PARTS {
             assert!(to.join(name).exists(), "{name} fehlt im Ziel");
             assert!(!from.join(name).exists(), "{name} liegt noch am alten Ort");
@@ -182,7 +182,7 @@ mod tests {
         fs::create_dir_all(&from).expect("quelle");
         fs::write(from.join(DATABASE_FILE), "db").expect("datei");
 
-        assert_eq!(move_database(&from, &to).expect("umzug"), 1);
+        assert_eq!(move_database_files(&from, &to).expect("umzug"), 1);
         assert!(to.join(DATABASE_FILE).exists());
 
         let _ = fs::remove_dir_all(&base);

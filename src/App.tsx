@@ -33,12 +33,14 @@ import { TaskDialog } from '@/features/tasks/TaskDialog';
 import { TasksView } from '@/features/tasks/TasksView';
 import { TodayView } from '@/features/today/TodayView';
 import { TrashView } from '@/features/trash/TrashView';
+import { WeekView } from '@/features/week/WeekView';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { useTheme } from '@/hooks/useTheme';
 import type { AnalysisResult, UpdateInfo, ViewId } from '@/types';
 
 const TITLES: Record<ViewId, string> = {
   today: 'Heute',
+  week: 'Woche',
   inbox: 'Inbox',
   tasks: 'Aufgaben',
   notes: 'Notizen',
@@ -69,6 +71,14 @@ export function App() {
     requestNewNote();
   }, []);
 
+  /**
+   * Der Wechsel startet die App neu. Der Aufruf kehrt im Normalfall nicht
+   * zurueck - meldet er trotzdem einen Fehler, muss der sichtbar werden.
+   */
+  const switchProfile = useCallback((id: string) => {
+    api.profiles.switch(id).catch(reportError);
+  }, []);
+
   // Andere Ansichten koennen den Wechsel anfordern, etwa der Sprung von
   // einer Aufgabe zu ihrer Ursprungsnotiz.
   useEffect(() => {
@@ -95,6 +105,7 @@ export function App() {
       }),
       listen<string>(EVENTS.navigate, (event) => {
         if (event.payload === 'today') setView('today');
+        if (event.payload === 'week') setView('week');
         if (event.payload === 'task/new') openTaskDialog(null);
         if (event.payload === 'note/new') goToNotes();
       }),
@@ -170,6 +181,7 @@ export function App() {
   const commands = useMemo<Command[]>(
     () => [
       { id: 'today', label: 'Heute anzeigen', hint: 'Strg+1', run: () => setView('today') },
+      { id: 'week', label: 'Woche anzeigen', hint: 'Strg+5', run: () => setView('week') },
       { id: 'inbox', label: 'Inbox anzeigen', hint: 'Strg+2', run: () => setView('inbox') },
       { id: 'tasks', label: 'Aufgaben anzeigen', hint: 'Strg+3', run: () => setView('tasks') },
       { id: 'notes', label: 'Notizen anzeigen', hint: 'Strg+4', run: () => setView('notes') },
@@ -194,6 +206,7 @@ export function App() {
       'ctrl+2': () => setView('inbox'),
       'ctrl+3': () => setView('tasks'),
       'ctrl+4': () => setView('notes'),
+      'ctrl+5': () => setView('week'),
       'ctrl+,': () => setView('settings'),
     }),
     [goToNotes],
@@ -217,7 +230,9 @@ export function App() {
         tasks={tasks}
         noteCount={notes.length}
         version={status?.appVersion ?? ''}
+        profiles={status?.profiles ?? null}
         onSelect={setView}
+        onSwitchProfile={switchProfile}
       />
 
       <main className="main">
@@ -244,6 +259,7 @@ export function App() {
         </header>
 
         {view === 'today' ? <TodayView /> : null}
+        {view === 'week' ? <WeekView /> : null}
         {view === 'inbox' ? <InboxView /> : null}
         {view === 'tasks' ? <TasksView /> : null}
         {view === 'notes' ? (

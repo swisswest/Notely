@@ -17,6 +17,7 @@ import type {
   ModelInfo,
   Note,
   NoteVersion,
+  ProfileList,
   QuickResult,
   ReviewStatus,
   SearchResults,
@@ -171,11 +172,20 @@ export const api = {
     directory: () => call<string>('backup_directory'),
     now: () => call<BackupInfo>('backup_now'),
     list: () => call<BackupInfo[]>('list_backups'),
-    import: (fileName: string) => call<ImportSummary>('import_backup', { fileName }),
+    import: (fileName: string, allowForeign = false) =>
+      call<ImportSummary>('import_backup', { fileName, allowForeign }),
     verify: (fileName: string) => call<BackupCheck>('verify_backup', { fileName }),
     exportMarkdown: () => call<BackupInfo>('export_markdown'),
     importMarkdown: (directory: string, folderId: string | null) =>
       call<MarkdownImportSummary>('import_markdown', { directory, folderId }),
+  },
+  profiles: {
+    list: () => call<ProfileList>('list_profiles'),
+    create: (name: string, color: string) => call<ProfileList>('create_profile', { name, color }),
+    rename: (id: string, name: string) => call<ProfileList>('rename_profile', { id, name }),
+    remove: (id: string) => call<ProfileList>('remove_profile', { id }),
+    /** Startet die App neu; der Aufruf kehrt im Normalfall nicht zurück. */
+    switch: (id: string) => call<void>('switch_profile', { id }),
   },
   review: {
     status: () => call<ReviewStatus>('review_status'),

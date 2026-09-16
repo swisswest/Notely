@@ -4,11 +4,19 @@ use crate::db::Db;
 pub struct AppState {
     pub db: Db,
     pub claude: ClaudeClient,
+    /// Kennung des Profils, dessen Datenbank in `db` offen ist. Sie wird beim
+    /// Start festgelegt und aendert sich zur Laufzeit nie - ein Profilwechsel
+    /// startet die App neu.
+    pub profile: String,
 }
 
 impl AppState {
-    pub fn new(db: Db, claude: ClaudeClient) -> Self {
-        Self { db, claude }
+    pub fn new(db: Db, claude: ClaudeClient, profile: String) -> Self {
+        Self {
+            db,
+            claude,
+            profile,
+        }
     }
 }
 

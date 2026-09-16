@@ -179,6 +179,8 @@ export interface BackupCheck {
   folders: number;
   labels: number;
   sha256: string;
+  /** Profil, aus dem die Sicherung stammt; null bei Dateien vor Version 0.8. */
+  profile: string | null;
 }
 
 export interface UpdateInfo {
@@ -301,6 +303,20 @@ export interface AppStatus {
   apiKeyHint: string | null;
   autostartEnabled: boolean;
   appVersion: string;
+  profiles: ProfileList;
+}
+
+/** Ein getrennter Datenbestand, z. B. Privat und Arbeit. */
+export interface Profile {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface ProfileList {
+  profiles: Profile[];
+  active: string;
+  max: number;
 }
 
 export interface ConnectionTest {
@@ -314,4 +330,4 @@ export interface ModelInfo {
   displayName: string;
 }
 
-export type ViewId = 'today' | 'inbox' | 'tasks' | 'notes' | 'trash' | 'settings';
+export type ViewId = 'today' | 'week' | 'inbox' | 'tasks' | 'notes' | 'trash' | 'settings';

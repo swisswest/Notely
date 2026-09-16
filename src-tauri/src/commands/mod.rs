@@ -2,6 +2,7 @@ pub mod ai;
 pub mod backup;
 pub mod notes;
 pub mod organization;
+pub mod profiles;
 pub mod quick;
 pub mod review;
 pub mod search;

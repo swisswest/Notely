@@ -47,6 +47,12 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
   ursprüngliche Notiz bleibt immer erhalten, auch wenn die Analyse fehlschlägt.
 - **Aufgaben** mit Heute/Morgen/Diese Woche/Überfällig, Mehrfachauswahl und
   Massenaktionen (verschieben, erledigen, löschen).
+- **Wochenansicht** (`Strg+5`): sieben Tagesspalten, innerhalb eines Tages nach
+  deinen Tageszeiten gegliedert, dazu eine Spalte für alles ohne Termin.
+  Verschieben per Ziehen oder komplett über die Tastatur.
+- **Getrennte Profile** für Privat und Arbeit: eigene Datenbank je Profil, ein
+  gemeinsamer API-Key. Der Wechsel startet die App neu, damit keine Abfrage je
+  Daten des anderen Profils sieht.
 - **Claude-Analyse** über Structured Output. Erkennt keine konkrete Handlung,
   entsteht auch keine Aufgabe.
 - **Windows-Benachrichtigungen** mit konfigurierbaren Vorlaufzeiten, Snooze und
@@ -161,8 +167,9 @@ Details und Meldeweg: [SECURITY.md](SECURITY.md).
 ## Datenschutz
 
 Notizen, Aufgaben und Einstellungen liegen ausschliesslich lokal in
-`%APPDATA%\Notely`. Bei einer Analyse wird der Text der jeweiligen
-Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
+`%APPDATA%\Notely\profiles\<profil>\notely.db` — pro Profil eine eigene
+Datei. Bei einer Analyse wird der Text der jeweiligen Notiz an die
+Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 
 ## Tastatur
 
@@ -171,7 +178,7 @@ Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 | `Ctrl+Alt+N` | Schnellerfassung (systemweit) |
 | `Strg+K` | Befehlspalette und Suche |
 | `Strg+N` / `Strg+T` | Neue Notiz / neuer Task |
-| `Strg+1…4` | Heute / Inbox / Tasks / Notizen |
+| `Strg+1…5` | Heute / Inbox / Tasks / Notizen / Woche |
 | `Strg+S` | Notiz speichern |
 | `Strg+,` | Einstellungen |
 | `Esc` | Dialog schliessen |
@@ -182,10 +189,10 @@ Notiz an die Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 - [x] Wiederkehrende Aufgaben
 - [x] Autosave und Versionsverlauf für Notizen
 - [x] Priorität und Labels für Aufgaben
-- [ ] Wochenansicht mit Tageszeiten
+- [x] Wochenansicht mit Tageszeiten
 - [ ] Volltextsuche über SQLite FTS5
 - [ ] Code-Signing, damit die SmartScreen-Warnung verschwindet
-- [ ] Getrennte Profile für Privat und Arbeit
+- [x] Getrennte Profile für Privat und Arbeit
 
 ## Mitmachen
 

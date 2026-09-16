@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::ai::ModelInfo;
+use crate::commands::profiles::{list_for, ProfileList};
 use crate::db::settings as repo;
 use crate::db::usage::{self as usage_repo, UsageSummary};
 use crate::domain::settings::AppSettings;
@@ -18,6 +19,9 @@ pub struct AppStatus {
     pub api_key_hint: Option<String>,
     pub autostart_enabled: bool,
     pub app_version: String,
+    /// Die Profile kommen mit dem Status mit, damit die Oberflaeche beim Start
+    /// nicht zweimal nachfragen muss.
+    pub profiles: ProfileList,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,6 +41,7 @@ pub fn get_status(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppSt
         api_key_hint: SecretStore::masked_hint().unwrap_or(None),
         autostart_enabled: startup::is_enabled(&app).unwrap_or(false),
         app_version: env!("CARGO_PKG_VERSION").to_string(),
+        profiles: list_for(&app)?,
     })
 }
 

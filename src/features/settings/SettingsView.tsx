@@ -8,6 +8,7 @@ import { ClaudeSection } from './sections/ClaudeSection';
 import { DataSection } from './sections/DataSection';
 import { DaypartsSection } from './sections/DaypartsSection';
 import { NotificationsSection } from './sections/NotificationsSection';
+import { ProfilesSection } from './sections/ProfilesSection';
 import { QualitySection } from './sections/QualitySection';
 import { SystemSection } from './sections/SystemSection';
 import { UpdateSection } from './sections/UpdateSection';
@@ -53,6 +54,7 @@ export function SettingsView() {
         <SystemSection settings={draft} onChange={setDraft} />
         <QualitySection settings={draft} onChange={setDraft} />
         <DataSection settings={draft} onChange={setDraft} />
+        <ProfilesSection profiles={status.profiles} />
         <UpdateSection settings={draft} version={status.appVersion} onChange={setDraft} />
 
         <section className="settings__group">

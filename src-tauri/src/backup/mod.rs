@@ -30,6 +30,11 @@ pub struct BackupPayload {
     pub labels: Vec<Label>,
     /// Nur zur Information; beim Import werden Einstellungen nicht übernommen.
     pub settings: AppSettings,
+    /// Profil, aus dem die Sicherung stammt. Bei Dateien aus der Zeit vor den
+    /// Profilen fehlt der Eintrag - die gelten als profilfrei und lassen sich
+    /// ohne Nachfrage einspielen.
+    #[serde(default)]
+    pub profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -70,11 +75,12 @@ pub fn resolve_dir(documents: Option<PathBuf>, settings: &AppSettings) -> AppRes
     Ok(base.join(DEFAULT_DIR_NAME))
 }
 
-pub fn collect(db: &Db, app_version: &str) -> AppResult<BackupPayload> {
+pub fn collect(db: &Db, app_version: &str, profile: &str) -> AppResult<BackupPayload> {
     db.with(|conn| {
         Ok(BackupPayload {
             schema_version: SCHEMA_VERSION,
             app_version: app_version.to_string(),
+            profile: Some(profile.to_string()),
             exported_at: Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
             notes: notes::list_all(conn)?,
             tasks: tasks::list_all(conn)?,
@@ -85,13 +91,18 @@ pub fn collect(db: &Db, app_version: &str) -> AppResult<BackupPayload> {
     })
 }
 
-pub fn write(db: &Db, app_version: &str, dir: &Path) -> AppResult<BackupInfo> {
+/// Schreibt eine Sicherung des uebergebenen Profils.
+///
+/// Die Kennung steht im Dateinamen, weil alle Profile in denselben Ordner
+/// sichern koennen. Ohne sie waeren zwei Sicherungen aus verschiedenen
+/// Profilen in der Liste nicht auseinanderzuhalten.
+pub fn write(db: &Db, app_version: &str, profile: &str, dir: &Path) -> AppResult<BackupInfo> {
     fs::create_dir_all(dir)
         .map_err(|err| AppError::Internal(format!("Backup-Ordner nicht anlegbar: {err}")))?;
 
-    let payload = collect(db, app_version)?;
+    let payload = collect(db, app_version, profile)?;
     let file_name = format!(
-        "{FILE_PREFIX}{}.json",
+        "{FILE_PREFIX}{profile}-{}.json",
         Local::now().format("%Y-%m-%d-%H%M%S")
     );
     let path = dir.join(&file_name);
@@ -352,6 +363,8 @@ pub struct BackupCheck {
     pub labels: usize,
     /// Fingerabdruck der Datei, um zwei Sicherungen vergleichen zu koennen.
     pub sha256: String,
+    /// Profil, aus dem die Sicherung stammt; `None` bei alten Dateien.
+    pub profile: Option<String>,
 }
 
 fn failed_check(file_name: &str, message: impl Into<String>, sha256: String) -> BackupCheck {
@@ -366,6 +379,7 @@ fn failed_check(file_name: &str, message: impl Into<String>, sha256: String) -> 
         folders: 0,
         labels: 0,
         sha256,
+        profile: None,
     }
 }
 
@@ -422,6 +436,7 @@ pub fn verify(path: &Path) -> AppResult<BackupCheck> {
         folders: payload.folders.len(),
         labels: payload.labels.len(),
         sha256,
+        profile: payload.profile,
     })
 }
 
@@ -436,7 +451,18 @@ fn digest(bytes: &[u8]) -> String {
         .collect()
 }
 
-pub fn import(db: &Db, path: &Path) -> AppResult<ImportSummary> {
+/// Spielt eine Sicherung in das offene Profil ein.
+///
+/// Stammt sie aus einem anderen Profil, bricht der Import ab. Das ist der
+/// ganze Zweck getrennter Profile: Arbeit landet nicht aus Versehen im
+/// privaten Bestand. Wer es trotzdem will, bestaetigt es einmal - dann ist es
+/// eine Entscheidung und kein Versehen.
+pub fn import(
+    db: &Db,
+    path: &Path,
+    profile: &str,
+    allow_foreign: bool,
+) -> AppResult<ImportSummary> {
     let raw = fs::read_to_string(path)
         .map_err(|err| AppError::Internal(format!("Sicherung nicht lesbar: {err}")))?;
     let payload: BackupPayload = serde_json::from_str(&raw)
@@ -446,6 +472,14 @@ pub fn import(db: &Db, path: &Path) -> AppResult<ImportSummary> {
         return Err(AppError::validation(
             "Die Sicherung stammt aus einer neueren Version von Notely",
         ));
+    }
+
+    if !allow_foreign {
+        if let Some(origin) = payload.profile.as_deref().filter(|id| *id != profile) {
+            return Err(AppError::validation(format!(
+                "Diese Sicherung stammt aus dem Profil „{origin}“, offen ist „{profile}“. Bitte bestätigen, wenn sie trotzdem hier eingespielt werden soll."
+            )));
+        }
     }
 
     db.with(|conn| merge(conn, &payload))
@@ -657,7 +691,7 @@ mod tests {
 
     #[test]
     fn export_contains_everything() {
-        let payload = collect(&seeded_db(), "0.3.0").expect("payload");
+        let payload = collect(&seeded_db(), "0.3.0", "privat").expect("payload");
         assert_eq!(payload.notes.len(), 1);
         assert_eq!(payload.tasks.len(), 1);
         assert_eq!(payload.folders.len(), 1);
@@ -667,7 +701,7 @@ mod tests {
 
     #[test]
     fn import_into_empty_database_restores_everything() {
-        let payload = collect(&seeded_db(), "0.3.0").expect("payload");
+        let payload = collect(&seeded_db(), "0.3.0", "privat").expect("payload");
         let target = Db::open_in_memory().expect("db");
 
         let summary = target.with(|conn| merge(conn, &payload)).expect("import");
@@ -703,7 +737,7 @@ mod tests {
     fn verify_reads_a_backup_without_touching_the_database() {
         let db = seeded_db();
         let dir = scratch_dir("verify-ok");
-        let info = write(&db, "0.7.0", &dir).expect("write");
+        let info = write(&db, "0.7.0", "privat", &dir).expect("write");
 
         let check = verify(&dir.join(&info.file_name)).expect("verify");
         assert!(check.ok, "{}", check.message);
@@ -711,6 +745,52 @@ mod tests {
         assert_eq!(check.tasks, 1);
         assert_eq!(check.app_version, "0.7.0");
         assert_eq!(check.sha256.len(), 64);
+        assert_eq!(check.profile.as_deref(), Some("privat"));
+        assert!(
+            info.file_name.contains("privat"),
+            "Das Profil gehoert in den Dateinamen: {}",
+            info.file_name
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_backup_from_another_profile_needs_confirmation() {
+        let db = seeded_db();
+        let dir = scratch_dir("fremdes-profil");
+        let info = write(&db, "0.8.0", "arbeit", &dir).expect("write");
+        let path = dir.join(&info.file_name);
+        let target = Db::open_in_memory().expect("db");
+
+        let refused = import(&target, &path, "privat", false);
+        assert!(refused.is_err(), "Fremdes Profil muss abgelehnt werden");
+        assert_eq!(
+            target
+                .with(|conn| notes::list_all(conn))
+                .expect("leer")
+                .len(),
+            0,
+            "Bei abgelehntem Import darf nichts geschrieben worden sein"
+        );
+
+        let accepted = import(&target, &path, "privat", true).expect("bestaetigt");
+        assert_eq!(accepted.notes, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_backup_from_before_profiles_imports_without_asking() {
+        let dir = scratch_dir("altes-backup");
+        let mut payload = collect(&seeded_db(), "0.7.1", "privat").expect("payload");
+        payload.profile = None;
+        let path = dir.join("alt.json");
+        fs::write(&path, serde_json::to_string(&payload).expect("json")).expect("write");
+
+        let target = Db::open_in_memory().expect("db");
+        let summary = import(&target, &path, "arbeit", false).expect("import");
+        assert_eq!(summary.notes, 1);
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -731,7 +811,7 @@ mod tests {
 
     #[test]
     fn importing_twice_changes_nothing() {
-        let payload = collect(&seeded_db(), "0.3.0").expect("payload");
+        let payload = collect(&seeded_db(), "0.3.0", "privat").expect("payload");
         let target = Db::open_in_memory().expect("db");
 
         target.with(|conn| merge(conn, &payload)).expect("first");
@@ -752,7 +832,7 @@ mod tests {
 
     #[test]
     fn name_collisions_get_a_suffix() {
-        let payload = collect(&seeded_db(), "0.3.0").expect("payload");
+        let payload = collect(&seeded_db(), "0.3.0", "privat").expect("payload");
         let target = Db::open_in_memory().expect("db");
         target
             .with(|conn| {
