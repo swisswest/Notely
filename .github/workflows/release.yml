@@ -62,8 +62,11 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
           generate_release_notes: true
+          # Tauri 2 signiert die exe direkt; das .nsis.zip entsteht nur im
+          # v1-kompatiblen Modus. Nicht passende Muster werden uebersprungen.
           files: |
             src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
             src-tauri/target/release/bundle/nsis/*.nsis.zip
             src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
             src-tauri/target/release/bundle/latest.json
