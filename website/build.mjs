@@ -213,6 +213,7 @@ ${extraHead}
       <a href="${base}#sicherheit">Sicherheit</a>
       <a href="${base}#installation">Installation</a>
       <a href="${base}versionen/"${active === 'versionen' ? ' aria-current="page"' : ''}>Versionen</a>
+      <a href="${base}it/"${active === 'it' ? ' aria-current="page"' : ''}>Für IT</a>
     </nav>
     <div class="header__actions">
       <a class="icon-link" href="${GH}" aria-label="Notely auf GitHub" rel="noopener">${icon.github(18)}</a>
@@ -231,8 +232,10 @@ ${body}
     </div>
     <nav class="footer__links" aria-label="Fusszeile">
       <a href="${base}versionen/">Alle Versionen</a>
+      <a href="${base}it/">Firmenrechner &amp; IT</a>
       <a href="${GH}/blob/main/CHANGELOG.md" rel="noopener">Changelog</a>
       <a href="${GH}/blob/main/SECURITY.md" rel="noopener">Sicherheit</a>
+      <a href="${GH}/blob/main/CODE_SIGNING.md" rel="noopener">Code-Signing</a>
       <a href="${GH}/issues" rel="noopener">Fehler melden</a>
       <a href="${GH}" rel="noopener">GitHub</a>
     </nav>
@@ -289,7 +292,8 @@ function renderHome({ latest, roadmap }) {
   const faq = [
     ['Was kostet Notely?', 'Nichts. Notely ist Open Source unter MIT-Lizenz. Für die Aufgabenerkennung nutzt du deinen eigenen Claude API-Key und bezahlst Anthropic direkt nach Verbrauch – Notely zeigt dir Analysen und Tokens pro Tag und Monat an.'],
     ['Funktioniert Notely ohne API-Key?', 'Ja. Notizen, Aufgaben, Erinnerungen, Suche und Sicherung funktionieren vollständig. Nur die automatische Analyse von Notizen zu Aufgaben braucht einen Key.'],
-    ['Warum warnt Windows beim Installieren?', 'Der Installer ist derzeit nicht code-signiert. SmartScreen zeigt deshalb „Unbekannter Herausgeber". Klicke auf <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Die SHA-256-Prüfsumme jeder Datei findest du auf der <a href="versionen/">Versionsseite</a>. Code-Signing steht auf der Roadmap.'],
+    ['Warum warnt Windows beim Installieren?', 'Der Installer ist derzeit nicht code-signiert. SmartScreen zeigt deshalb „Unbekannter Herausgeber": <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Eleganter geht es über Rechtsklick auf die Datei → <em>Eigenschaften</em> → <em>Zulassen</em> – dann erscheint die Abfrage gar nicht erst. Die SHA-256-Prüfsumme jeder Datei steht auf der <a href="versionen/">Versionsseite</a>.'],
+    ['Auf meinem Firmenrechner lässt sich die Warnung nicht wegklicken.', 'Dann steht SmartScreen dort per Richtlinie auf „Warnen und Umgehen verhindern" – den Knopf <em>Trotzdem ausführen</em> gibt es dann nicht. Probiere zuerst Rechtsklick → <em>Eigenschaften</em> → <em>Zulassen</em>. Hilft das nicht, entscheidet die IT. Auf der Seite <a href="it/">Firmenrechner &amp; IT</a> steht alles, was sie für die Freigabe braucht – Netzwerkziele, Ablageorte, Prüfsummen.'],
     ['Brauche ich Adminrechte?', 'Nein. Notely installiert sich ins Benutzerprofil.'],
     ['Wie aktualisiere ich?', 'Neuen Installer herunterladen und ausführen – er ersetzt die installierte Version, deine Daten bleiben erhalten. Automatische Updates sind in Planung.'],
     ['Wo liegen meine Daten?', 'Ausschliesslich lokal unter <code>%APPDATA%\\Notely</code>, die Logdatei unter <code>%LOCALAPPDATA%\\Notely\\logs</code>. Kein Konto, keine Cloud, keine Telemetrie.'],
@@ -464,7 +468,7 @@ function renderHome({ latest, roadmap }) {
       <li class="step"><h3>Ausführen</h3><p>Installation ins Benutzerprofil, ohne Adminrechte. Installer auf Deutsch und Englisch.</p></li>
       <li class="step"><h3>API-Key hinterlegen</h3><p>Optional: eigenen Key von <a href="https://console.anthropic.com" rel="noopener" style="color:var(--accent)">console.anthropic.com</a> in den Einstellungen eintragen.</p></li>
     </ol>
-    <div class="note">${icon.warn(16)}<p><strong>Hinweis zu SmartScreen:</strong> Der Installer ist noch nicht signiert. Windows meldet deshalb „Unbekannter Herausgeber" – <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Prüfsummen stehen auf der <a href="versionen/" style="color:var(--accent)">Versionsseite</a>.</p></div>
+    <div class="note">${icon.warn(16)}<p><strong>Hinweis zu SmartScreen:</strong> Der Installer ist noch nicht signiert. Windows meldet deshalb „Unbekannter Herausgeber" – <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Sauberer: Rechtsklick auf die Datei → <em>Eigenschaften</em> → <em>Zulassen</em>, dann erscheint die Abfrage nicht. Lässt sich die Warnung auf einem Firmenrechner gar nicht umgehen, hilft die Seite <a href="it/" style="color:var(--accent)">Firmenrechner &amp; IT</a> weiter.</p></div>
   </div>
 </section>
 
@@ -593,6 +597,145 @@ function renderVersions({ entries, latest }) {
   });
 }
 
+// ---------------------------------------------------------------- /it/ (Firmenrechner und IT-Abteilungen)
+/**
+ * Die Seite, auf die jemand landet, wenn Windows ihn nicht starten laesst.
+ * Oben der Selbsthilfe-Teil, unten das, was eine IT-Abteilung braucht, um in
+ * zwei Minuten zu entscheiden - ohne dass jemand nachfragen muss.
+ */
+function renderIt({ latest }) {
+  const hash = latest?.asset?.sha256 || null;
+  const fileName = latest?.asset?.name || 'Notely_x.y.z_x64-setup.exe';
+
+  const network = [
+    ['api.anthropic.com', '443 / HTTPS', 'Nur beim Analysieren einer Notiz. Ohne hinterlegten API-Key wird die Adresse nie kontaktiert.'],
+    ['github.com, objects.githubusercontent.com', '443 / HTTPS', 'Update-Prüfung beim Start. In den Einstellungen abschaltbar.'],
+  ];
+
+  const storage = [
+    ['Programmdateien', '%LOCALAPPDATA%\\Notely'],
+    ['Datenbank je Profil', '%APPDATA%\\Notely\\profiles\\&lt;profil&gt;\\notely.db'],
+    ['Logdatei', '%LOCALAPPDATA%\\Notely\\logs\\notely.log'],
+    ['API-Key', 'Windows Credential Manager, generisches Element „Notely"'],
+    ['Autostart (optional, aus)', 'HKCU\\...\\CurrentVersion\\Run'],
+  ];
+
+  const facts = [
+    ['Keine Adminrechte', 'NSIS-Installer im Modus <code>currentUser</code>. Schreibt ausschliesslich ins Benutzerprofil, nie nach Program Files, nie nach HKLM.'],
+    ['Kein Konto, keine Telemetrie', 'Keine Registrierung, kein Analytics, kein automatischer Upload. Es gibt keinen Server, der Notely gehört.'],
+    ['Daten bleiben auf dem Gerät', 'SQLite im Benutzerprofil. Eine Sicherung schreibt eine JSON-Datei dorthin, wo der Benutzer sie hinlegt – sonst verlässt nichts den Rechner.'],
+    ['Kein Netzwerk aus der Oberfläche', 'Die Content-Security-Policy erlaubt dem Webview ausschliesslich <code>ipc:</code>. Jeder ausgehende Aufruf läuft über den Rust-Prozess und ist im Quellcode nachlesbar.'],
+    ['Quelloffen', 'MIT-Lizenz, vollständiger Quellcode und Build-Pipeline auf GitHub. Der Installer wird von GitHub Actions gebaut, nicht auf einem privaten Rechner.'],
+    ['Updates signiert', 'Automatische Updates sind mit einem minisign-Schlüssel signiert und werden abgelehnt, wenn die Signatur nicht passt – unabhängig von der fehlenden Authenticode-Signatur.'],
+  ];
+
+  const body = `
+<section class="page-head">
+  <div class="container">
+    <p class="kicker">Firmenrechner</p>
+    <h1>Windows lässt Notely nicht starten</h1>
+    <p>Auf einem verwalteten Gerät blockiert Windows unsignierte Programme – teilweise ohne die Möglichkeit, die Warnung wegzuklicken. Oben steht, was du selbst versuchen kannst. Weiter unten steht alles, was deine IT-Abteilung braucht, um zu entscheiden.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <p class="kicker">Selbsthilfe</p>
+      <h2>Zuerst das hier probieren.</h2>
+      <p>Windows markiert jede heruntergeladene Datei als „aus dem Internet". Genau diese Markierung löst die Warnung aus. Nimmst du sie weg, erscheint die Warnung nicht mehr – das ist keine Umgehung einer Richtlinie, sondern eine Funktion, die Windows im Eigenschaften-Dialog anbietet.</p>
+    </div>
+    <div class="note">${icon.bolt(16)}<p><strong>Am einfachsten über winget:</strong> <code>winget install Westcon.Notely</code> – der Windows-Paketmanager lädt die Datei selbst herunter, sie trägt deshalb keine Internet-Markierung und SmartScreen fragt gar nicht erst. Klappt das nicht, hilft der Weg darunter.</p></div>
+    <ol class="steps">
+      <li class="step"><h3>Rechtsklick auf die Datei</h3><p>Im Download-Ordner auf <em>${esc(fileName)}</em> rechtsklicken und <em>Eigenschaften</em> wählen.</p></li>
+      <li class="step"><h3>Zulassen ankreuzen</h3><p>Ganz unten im Reiter <em>Allgemein</em> steht <em>Sicherheit: Die Datei stammt von einem anderen Computer …</em>. Dort <em>Zulassen</em> ankreuzen.</p></li>
+      <li class="step"><h3>Übernehmen, dann starten</h3><p>Auf <em>Übernehmen</em> klicken und den Installer erneut ausführen. Die SmartScreen-Abfrage entfällt.</p></li>
+    </ol>
+    <div class="note">${icon.note(16)}<p><strong>Mit PowerShell geht es in einer Zeile:</strong> <code>Unblock-File "$HOME\\Downloads\\${esc(fileName)}"</code></p></div>
+    <div class="note">${icon.warn(16)}<p><strong>Klappt das nicht,</strong> sperrt deine Firma das bewusst – dann entscheidet die IT, nicht du. Schick ihr den Link zu dieser Seite; ab hier steht alles, was sie dafür braucht.</p></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <p class="kicker">Prüfen statt vertrauen</p>
+      <h2>Ist die Datei echt?</h2>
+      <p>Von jeder veröffentlichten Datei steht die SHA-256-Prüfsumme auf der <a href="../versionen/" style="color:var(--accent)">Versionsseite</a>. Stimmt sie überein, ist die Datei Byte für Byte die, die GitHub Actions gebaut hat.</p>
+    </div>
+    <div class="note">${icon.shield(16)}<p><strong>Vergleichen:</strong> <code>Get-FileHash "$HOME\\Downloads\\${esc(fileName)}" -Algorithm SHA256</code>${
+      hash ? `<br><br>Erwartet für ${esc(latest.version)}: <button class="hash" type="button" data-copy="${esc(hash)}" title="SHA-256 kopieren" data-copied="Kopiert">${icon.copy(12)}<span>${esc(hash)}</span></button>` : ''
+    }</p></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <p class="kicker">Für IT-Abteilungen</p>
+      <h2>Was Notely tut – und was nicht.</h2>
+      <p>Notely ist eine lokale Notiz- und Aufgabenanwendung für Windows 11. Hersteller: Westcon. Lizenz: MIT. Der Installer ist derzeit nicht Authenticode-signiert; das ist der einzige Grund für die SmartScreen-Meldung. Wie die Dateien entstehen und wer sie freigibt, steht in der <a href="${GH}/blob/main/CODE_SIGNING.md" rel="noopener" style="color:var(--accent)">Code-Signing-Richtlinie</a>.</p>
+    </div>
+    <ul class="checklist">
+      ${facts.map(([t, d]) => `<li>${icon.checkCircle(18)}<div><strong>${t}</strong><span>${d}</span></div></li>`).join('\n      ')}
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container split">
+    <div class="section__head">
+      <p class="kicker">Netzwerk</p>
+      <h2>Wohin die App verbindet.</h2>
+      <p>Vollständig. Es gibt keine weiteren ausgehenden Verbindungen – nachprüfbar im Quellcode und im Netzwerkmitschnitt.</p>
+    </div>
+    <div>
+      <ul class="keys">
+        ${network.map(([host, port, note]) => `<li style="display:block;padding:14px 18px"><div style="font-family:var(--mono);font-size:13px">${esc(host)}</div><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${esc(port)} · ${esc(note)}</div></li>`).join('\n        ')}
+      </ul>
+      <div class="note">${icon.warn(16)}<p><strong>Die Datenschutz-Entscheidung:</strong> Analysiert ein Benutzer eine Notiz, wird deren Text an die Anthropic-API übertragen. Das passiert nur mit einem hinterlegten API-Key, nur auf Auslösung hin und nie automatisch im Hintergrund. Ohne Key funktioniert alles ausser dieser Analyse. Ob das für Ihre Daten zulässig ist, ist eine organisatorische Frage – keine technische.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container split">
+    <div class="section__head">
+      <p class="kicker">Ablageorte</p>
+      <h2>Wo etwas geschrieben wird.</h2>
+      <p>Alles im Benutzerprofil. Eine Deinstallation entfernt das Programm; die Daten bleiben liegen und lassen sich per Richtlinie mitentfernen.</p>
+    </div>
+    <dl class="kv">
+      ${storage.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('\n      ')}
+    </dl>
+  </div>
+</section>
+
+<section class="section section--last">
+  <div class="container">
+    <div class="section__head">
+      <p class="kicker">Freigabe</p>
+      <h2>Drei Wege, es zu erlauben.</h2>
+    </div>
+    <ol class="steps">
+      <li class="step"><h3>Verteilen statt herunterladen</h3><p>Wird der Installer über Intune, SCCM oder eine Freigabe verteilt, trägt er keine Internet-Markierung – die SmartScreen-Abfrage entfällt vollständig. Das ist der sauberste Weg.</p></li>
+      <li class="step"><h3>AppLocker per Hash</h3><p>Eine Hash-Regel funktioniert ohne Signatur. Die SHA-256-Summe jeder Version steht auf der <em><a href="../versionen/" style="color:var(--accent)">Versionsseite</a></em> und maschinenlesbar in <em><a href="../releases.json" style="color:var(--accent)">releases.json</a></em>.</p></li>
+      <li class="step"><h3>Herkunft prüfen</h3><p>Jede Datei stammt aus einem öffentlichen GitHub-Actions-Lauf auf einem öffentlichen Repository. Build-Protokoll, Quellstand und Prüfsumme sind für jede Version einsehbar.</p></li>
+    </ol>
+    <div class="note">${icon.github(16)}<p><strong>Fragen, die hier nicht beantwortet sind,</strong> gehen am besten als <a href="${GH}/issues" rel="noopener" style="color:var(--accent)">Issue auf GitHub</a> – dann steht die Antwort für die nächste IT-Abteilung gleich mit da.</p></div>
+  </div>
+</section>`;
+
+  return layout({
+    title: 'Notely auf Firmenrechnern – für IT-Abteilungen',
+    description: 'Warum Windows Notely blockiert, wie sich die Warnung ohne Umweg beseitigen lässt, und alle technischen Angaben für die Freigabe durch eine IT-Abteilung.',
+    path: 'it/',
+    base: '../',
+    active: 'it',
+    body,
+  });
+}
+
 // ---------------------------------------------------------------- /download/ (permanenter Link auf die neueste Version)
 function renderDownload({ latest }) {
   const target = latest ? latest.asset.url : `${GH}/releases`;
@@ -661,6 +804,7 @@ async function main() {
   };
   await write('index.html', renderHome({ latest, roadmap }));
   await write('versionen/index.html', renderVersions({ entries, latest }));
+  await write('it/index.html', renderIt({ latest }));
   await write('download/index.html', renderDownload({ latest }));
   await write('404.html', render404());
   await write('.nojekyll', '');
@@ -698,7 +842,7 @@ async function main() {
   await write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}sitemap.xml\n`);
   await write(
     'sitemap.xml',
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['', 'versionen/']
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['', 'versionen/', 'it/']
       .map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`)
       .join('\n')}\n</urlset>\n`,
   );

@@ -79,6 +79,14 @@ jobs:
             Windows meldet beim ersten Start "unbekannter Herausgeber", weil die
             Datei nicht signiert ist: *Weitere Informationen* -> *Trotzdem ausfuehren*.
 
+            Sauberer geht es so: Rechtsklick auf die heruntergeladene Datei ->
+            *Eigenschaften* -> unten *Zulassen* ankreuzen -> *Uebernehmen*.
+            Dann erscheint die Abfrage gar nicht erst.
+
+            Laesst sich die Warnung auf einem Firmenrechner nicht wegklicken,
+            hilft https://swisswest.github.io/Notely/it/ weiter - dort stehen
+            alle Angaben, die eine IT-Abteilung fuer die Freigabe braucht.
+
             Fuer die Aufgabenerkennung wird ein eigener Claude API-Key benoetigt
             (console.anthropic.com). Ohne Key funktioniert alles ausser der Analyse.
 
@@ -91,3 +99,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pages.yml --ref main
+
+  # Aufnahme in den Windows Package Manager. Das ist der wirksamste kostenlose
+  # Hebel gegen SmartScreen: winget laedt die Datei selbst herunter, sie traegt
+  # deshalb kein "Mark of the Web" - und ohne das erscheint die Warnung gar nicht.
+  #
+  # Faellt der Schritt aus, weil das Token fehlt, ist der Release trotzdem
+  # gueltig. Ein Paketmanager-Eintrag darf nie die Veroeffentlichung blockieren.
+  winget:
+    name: winget-Manifest aktualisieren
+    needs: release
+    runs-on: ubuntu-latest
+    # Vorabversionen gehoeren nicht in einen Paketmanager.
+    if: ${{ !contains(github.ref_name, '-') }}
+
+    steps:
+      - name: Ist winget eingerichtet?
+        id: gate
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if [ -n "$WINGET_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::WINGET_TOKEN fehlt - winget-Schritt uebersprungen."
+          fi
+
+      # Legt einen Pull Request gegen microsoft/winget-pkgs an. Voraussetzung:
+      # Westcon.Notely ist dort bereits einmal von Hand eingereicht worden.
+      - name: Manifest einreichen
+        if: steps.gate.outputs.ready == 'true'
+        uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: Westcon.Notely
+          installers-regex: '-setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+

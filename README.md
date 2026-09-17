@@ -72,11 +72,24 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
 
 ## Installation
 
-Fertigen Installer aus den [Releases](../../releases) laden und ausführen:
+Am einfachsten über den Windows-Paketmanager:
+
+```powershell
+winget install Westcon.Notely
+```
+
+winget lädt die Datei selbst herunter, sie trägt deshalb keine
+Internet-Markierung — die SmartScreen-Abfrage entfällt vollständig.
+
+Alternativ den Installer aus den [Releases](../../releases) laden und ausführen:
 `Notely_x.y.z_x64-setup.exe`. Installation ins Benutzerprofil, keine Adminrechte.
 
 > Windows zeigt beim ersten Start „unbekannter Herausgeber", weil die Datei nicht
-> signiert ist → *Weitere Informationen* → *Trotzdem ausführen*.
+> signiert ist → *Weitere Informationen* → *Trotzdem ausführen*. Sauberer:
+> Rechtsklick auf die Datei → *Eigenschaften* → *Zulassen* → *Übernehmen*, dann
+> erscheint die Abfrage gar nicht. Auf einem gesperrten Firmenrechner hilft die
+> Seite [Firmenrechner & IT](https://swisswest.github.io/Notely/it/) weiter.
+> Wie die Dateien entstehen: [CODE_SIGNING.md](CODE_SIGNING.md).
 
 Für die Aufgabenerkennung wird ein eigener [Claude API-Key](https://console.anthropic.com)
 benötigt. Ohne Key funktioniert alles ausser der Analyse.
