@@ -16,6 +16,9 @@ import type {
   MarkdownImportSummary,
   ModelInfo,
   Note,
+  Attachment,
+  AttachmentPayload,
+  AttachmentUsage,
   NoteVersion,
   ProfileList,
   QuickResult,
@@ -179,6 +182,15 @@ export const api = {
     importMarkdown: (directory: string, folderId: string | null) =>
       call<MarkdownImportSummary>('import_markdown', { directory, folderId }),
   },
+  attachments: {
+    add: (noteId: string | null, name: string, mime: string, data: string) =>
+      call<Attachment>('add_attachment', { noteId, name, mime, data }),
+    get: (id: string) => call<AttachmentPayload>('get_attachment', { id }),
+    /** Trägt die Notiz nach, sobald sie das erste Mal gespeichert wurde. */
+    assign: (noteId: string, ids: string[]) => call<number>('assign_attachments', { noteId, ids }),
+    remove: (id: string) => call<void>('delete_attachment', { id }),
+    usage: () => call<AttachmentUsage>('attachment_usage'),
+  },
   profiles: {
     list: () => call<ProfileList>('list_profiles'),
     create: (name: string, color: string) => call<ProfileList>('create_profile', { name, color }),
@@ -206,6 +218,12 @@ export const api = {
     completeOnboarding: (autostart: boolean) => call<void>('complete_onboarding', { autostart }),
     logFilePath: () => call<string>('log_file_path'),
     pickDirectory: () => call<string | null>('pick_directory'),
+    /**
+     * Öffnet den Windows-Speicherdialog und schreibt den Inhalt dorthin.
+     * Liefert null, wenn abgebrochen wurde - das ist kein Fehler.
+     */
+    saveExport: (suggestedName: string, contents: string) =>
+      call<string | null>('save_export', { suggestedName, contents }),
   },
 };
 

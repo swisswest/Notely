@@ -94,6 +94,9 @@ pub struct Task {
     pub completed: bool,
     pub completed_at: Option<String>,
     pub source_note_id: Option<String>,
+    /// Ordner der Ursprungsnotiz, beim Anlegen uebernommen.
+    #[serde(default)]
+    pub folder_id: Option<String>,
     pub ai_generated: bool,
     pub confidence: Option<f64>,
     /// RFC3339-Zeitpunkt, bis zu dem keine Benachrichtigung erzeugt wird.
@@ -127,6 +130,8 @@ pub struct TaskDraft {
     #[serde(default)]
     pub source_note_id: Option<String>,
     #[serde(default)]
+    pub folder_id: Option<String>,
+    #[serde(default)]
     pub ai_generated: bool,
     #[serde(default)]
     pub confidence: Option<f64>,
@@ -141,6 +146,8 @@ pub struct TaskDraft {
 pub struct TaskEdit {
     pub id: String,
     pub title: String,
+    #[serde(default)]
+    pub folder_id: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default)]

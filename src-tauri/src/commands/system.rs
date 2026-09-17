@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::db::settings as settings_repo;
 use crate::error::{AppError, AppResult};

@@ -45,8 +45,22 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
 
 - **Notizen** mit Ordnern, frei benennbaren Labels und Volltextsuche. Die
   ursprüngliche Notiz bleibt immer erhalten, auch wenn die Analyse fehlschlägt.
+- **Bausteine per Schrägstrich** (`/h1`, `/liste`, `/todo`, `/tabelle`,
+  `/diagramm` …) und eine umschaltbare Vorschau. Gespeichert wird reiner
+  Markdown-Text, damit Suche, Analyse und Verlauf unverändert funktionieren.
+- **Diagramme mit Mermaid** direkt in der Notiz — als Text, also durchsuchbar
+  und für Claude lesbar.
+- **Bilder in Notizen**: Screenshot mit `Strg+V` einfügen, ziehen und ablegen
+  oder auswählen. Die Daten liegen in der Profil-Datenbank, im Notiztext steht
+  nur eine Referenz — der Text bleibt Text.
+- **Export** einzelner Notizen als Markdown, Text, HTML oder PDF, dazu
+  Kopieren als Markdown oder formatiert für Mail und Word.
 - **Aufgaben** mit Heute/Morgen/Diese Woche/Überfällig, Mehrfachauswahl und
   Massenaktionen (verschieben, erledigen, löschen).
+- **Hilfe im Programm** (`F1`) mit durchsuchbaren Abschnitten und Beispielen,
+  die live gerendert neben ihrem Quelltext stehen.
+- **Aufgaben erben Ordner und Labels** der Notiz, aus der sie entstanden sind —
+  die Aufgabenliste lässt sich nach beidem filtern.
 - **Wochenansicht** (`Strg+5`): sieben Tagesspalten, innerhalb eines Tages nach
   deinen Tageszeiten gegliedert, dazu eine Spalte für alles ohne Termin.
   Verschieben per Ziehen oder komplett über die Tastatur.
@@ -192,6 +206,7 @@ Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 | `Strg+K` | Befehlspalette und Suche |
 | `Strg+N` / `Strg+T` | Neue Notiz / neuer Task |
 | `Strg+1…5` | Heute / Inbox / Tasks / Notizen / Woche |
+| `F1` | Hilfe |
 | `Strg+S` | Notiz speichern |
 | `Strg+,` | Einstellungen |
 | `Esc` | Dialog schliessen |
@@ -203,6 +218,7 @@ Anthropic-API übertragen — sonst verlässt nichts den Rechner.
 - [x] Autosave und Versionsverlauf für Notizen
 - [x] Priorität und Labels für Aufgaben
 - [x] Wochenansicht mit Tageszeiten
+- [x] Notiz-Export in mehreren Formaten
 - [ ] Volltextsuche über SQLite FTS5
 - [ ] Code-Signing, damit die SmartScreen-Warnung verschwindet
 - [x] Getrennte Profile für Privat und Arbeit

@@ -91,7 +91,16 @@ export function Sidebar({
       >
         <span>Einstellungen</span>
       </button>
-      <p className="sidebar__hint">Strg+K für Befehle</p>
+      <button
+        type="button"
+        className="sidebar__item"
+        aria-current={view === 'hilfe'}
+        title="Wie Notely gemeint ist - mit Beispielen"
+        onClick={() => onSelect('hilfe')}
+      >
+        <span>Hilfe</span>
+      </button>
+      <p className="sidebar__hint">Strg+K für Befehle · F1 für Hilfe</p>
     </nav>
   );
 }

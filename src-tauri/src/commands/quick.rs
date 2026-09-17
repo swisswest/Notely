@@ -6,7 +6,8 @@ use crate::db::models::{
     AnalysisResult, TaskDraft, ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED, ANALYSIS_STATUS_OK,
 };
 use crate::db::{
-    notes as note_repo, settings as settings_repo, tasks as task_repo, usage as usage_repo,
+    labels as label_repo, notes as note_repo, settings as settings_repo, tasks as task_repo,
+    usage as usage_repo,
 };
 use crate::domain::validation;
 use crate::error::AppResult;
@@ -102,13 +103,22 @@ pub async fn quick_capture(
             due_date: suggestion.due_date.clone(),
             due_time: suggestion.due_time.clone(),
             source_note_id: Some(note.id.clone()),
+            // Aus der Schnellerfassung kommt die Notiz meist ohne Ordner;
+            // uebernommen wird trotzdem, was dran ist.
+            folder_id: note.folder_id.clone(),
             ai_generated: true,
             confidence: Some(suggestion.confidence),
             recurrence: None,
             priority: Default::default(),
         })?;
 
-        match state.db.with(|conn| task_repo::create(conn, &draft)) {
+        match state.db.with(|conn| {
+            let task = task_repo::create(conn, &draft)?;
+            if !note.labels.is_empty() {
+                label_repo::set_for_task(conn, &task.id, &note.labels)?;
+            }
+            Ok(task)
+        }) {
             Ok(task) => created.push(task.id),
             Err(err) => {
                 logging::warn("quick", format!("Task nicht anlegbar: {err}"));

@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult};
 
 const COLUMNS: &str = "id, title, description, created_at, updated_at, due_date, due_time,
                        completed, completed_at, source_note_id, ai_generated, confidence,
-                       snoozed_until, deleted_at, recurrence, series_id, priority";
+                       snoozed_until, deleted_at, recurrence, series_id, priority, folder_id";
 
 pub const MAX_BULK: usize = 500;
 
@@ -30,6 +30,7 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Task> {
         recurrence: row.get(14)?,
         series_id: row.get(15)?,
         priority: Priority::from_i64(row.get(16)?),
+        folder_id: row.get(17)?,
         labels: Vec::new(),
     })
 }
@@ -57,8 +58,8 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
         "INSERT INTO tasks
            (id, title, description, created_at, updated_at, due_date, due_time,
             completed, source_note_id, ai_generated, confidence, recurrence, series_id,
-            priority)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12)",
+            priority, folder_id)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             id,
             draft.title,
@@ -72,6 +73,7 @@ pub fn create(conn: &Connection, draft: &TaskDraft) -> AppResult<Task> {
             draft.recurrence,
             series_id,
             draft.priority.as_i64(),
+            draft.folder_id,
         ],
     )?;
     get(conn, &id)
@@ -218,7 +220,8 @@ pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
     let changed = conn.execute(
         "UPDATE tasks
             SET title = ?2, description = ?3, due_date = ?4, due_time = ?5,
-                recurrence = ?6, series_id = ?7, priority = ?8, updated_at = ?9
+                recurrence = ?6, series_id = ?7, priority = ?8, folder_id = ?9,
+                updated_at = ?10
           WHERE id = ?1 AND deleted_at IS NULL",
         params![
             edit.id,
@@ -229,6 +232,7 @@ pub fn update(conn: &Connection, edit: &TaskEdit) -> AppResult<Task> {
             edit.recurrence,
             series_id,
             edit.priority.as_i64(),
+            edit.folder_id,
             now_utc()
         ],
     )?;
@@ -307,8 +311,8 @@ pub fn advance_series(conn: &Connection, task: &Task) -> AppResult<Option<Task>>
         "INSERT INTO tasks
            (id, title, description, created_at, updated_at, due_date, due_time,
             completed, source_note_id, ai_generated, confidence, recurrence, series_id,
-            priority)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12)",
+            priority, folder_id)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             id,
             task.title,
@@ -322,6 +326,8 @@ pub fn advance_series(conn: &Connection, task: &Task) -> AppResult<Option<Task>>
             rule.to_rule(),
             series_id,
             task.priority.as_i64(),
+            // Der Ordner gehoert zur Serie wie die Labels darunter.
+            task.folder_id,
         ],
     )?;
 
@@ -491,11 +497,65 @@ mod tests {
             due_date: date.map(str::to_string),
             due_time: time.map(str::to_string),
             source_note_id: None,
+            folder_id: None,
             ai_generated: false,
             confidence: None,
             recurrence: None,
             priority: Default::default(),
         }
+    }
+
+    #[test]
+    fn the_folder_is_stored_and_editable() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let folder = crate::db::folders::create(conn, "Arbeit")?;
+
+            let mut d = draft("Mit Ordner", Some("2026-09-20"), None);
+            d.folder_id = Some(folder.id.clone());
+            let task = create(conn, &d)?;
+            assert_eq!(task.folder_id.as_deref(), Some(folder.id.as_str()));
+
+            // Und wieder herausnehmen laesst er sich auch.
+            let cleared = update(
+                conn,
+                &TaskEdit {
+                    id: task.id.clone(),
+                    folder_id: None,
+                    title: task.title.clone(),
+                    description: String::new(),
+                    due_date: task.due_date.clone(),
+                    due_time: None,
+                    recurrence: None,
+                    priority: Default::default(),
+                },
+            )?;
+            assert_eq!(cleared.folder_id, None);
+            Ok(())
+        })
+        .expect("ablauf");
+    }
+
+    #[test]
+    fn a_series_keeps_its_folder() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let folder = crate::db::folders::create(conn, "Projekt")?;
+
+            let mut d = repeating("Woechentlich", "2026-09-21", "weekly:1");
+            d.folder_id = Some(folder.id.clone());
+            let task = create(conn, &d)?;
+
+            let done = set_completed(conn, &task.id, true)?;
+            let next = advance_series(conn, &done)?.expect("Folgeaufgabe");
+            assert_eq!(
+                next.folder_id.as_deref(),
+                Some(folder.id.as_str()),
+                "der Ordner gehoert zur Serie wie die Labels"
+            );
+            Ok(())
+        })
+        .expect("ablauf");
     }
 
     fn repeating(title: &str, date: &str, rule: &str) -> TaskDraft {
@@ -701,6 +761,7 @@ mod tests {
                 conn,
                 &TaskEdit {
                     id: task.id.clone(),
+                    folder_id: None,
                     title: "Wird Serie".into(),
                     description: String::new(),
                     due_date: Some("2026-09-15".into()),
@@ -716,6 +777,7 @@ mod tests {
                 conn,
                 &TaskEdit {
                     id: task.id.clone(),
+                    folder_id: None,
                     title: "Wird Serie".into(),
                     description: String::new(),
                     due_date: Some("2026-09-15".into()),
@@ -762,6 +824,7 @@ mod tests {
                 conn,
                 &TaskEdit {
                     id: task.id.clone(),
+                    folder_id: None,
                     title: "Migration".into(),
                     description: String::new(),
                     due_date: Some("2026-09-12".into()),

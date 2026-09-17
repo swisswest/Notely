@@ -32,6 +32,7 @@ import { SettingsView } from '@/features/settings/SettingsView';
 import { TaskDialog } from '@/features/tasks/TaskDialog';
 import { TasksView } from '@/features/tasks/TasksView';
 import { TodayView } from '@/features/today/TodayView';
+import { HelpView } from '@/features/help/HelpView';
 import { TrashView } from '@/features/trash/TrashView';
 import { WeekView } from '@/features/week/WeekView';
 import { useHotkeys } from '@/hooks/useHotkeys';
@@ -46,6 +47,7 @@ const TITLES: Record<ViewId, string> = {
   notes: 'Notizen',
   trash: 'Papierkorb',
   settings: 'Einstellungen',
+  hilfe: 'Hilfe',
 };
 
 const SEARCH_PREVIEW_CHARS = 70;
@@ -188,6 +190,7 @@ export function App() {
       { id: 'new-task', label: 'Neue Aufgabe erstellen', hint: 'Strg+T', run: () => openTaskDialog(null) },
       { id: 'new-note', label: 'Neue Notiz', hint: 'Strg+N', run: goToNotes },
       { id: 'settings', label: 'Einstellungen öffnen', run: () => setView('settings') },
+      { id: 'hilfe', label: 'Hilfe öffnen', hint: 'F1', run: () => setView('hilfe') },
       { id: 'updates', label: 'Nach Updates suchen', run: () => setView('settings') },
       { id: 'trash', label: 'Papierkorb anzeigen', run: () => setView('trash') },
       { id: 'review', label: 'Tagesabschluss öffnen', run: () => void checkReview(true) },
@@ -208,6 +211,7 @@ export function App() {
       'ctrl+4': () => setView('notes'),
       'ctrl+5': () => setView('week'),
       'ctrl+,': () => setView('settings'),
+      f1: () => setView('hilfe'),
     }),
     [goToNotes],
   );
@@ -247,7 +251,7 @@ export function App() {
                 Neue Notiz
               </Button>
             ) : null}
-            {view !== 'settings' && view !== 'notes' && view !== 'trash' ? (
+            {view !== 'settings' && view !== 'notes' && view !== 'trash' && view !== 'hilfe' ? (
               <Button variant="primary" onClick={() => openTaskDialog(null)}>
                 Neue Aufgabe
               </Button>
@@ -269,6 +273,7 @@ export function App() {
         ) : null}
         {view === 'trash' ? <TrashView /> : null}
         {view === 'settings' ? <SettingsView /> : null}
+        {view === 'hilfe' ? <HelpView /> : null}
       </main>
 
       {dialog?.kind === 'task' ? <TaskDialog task={dialog.task} onClose={closeDialog} /> : null}

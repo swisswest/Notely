@@ -2477,8 +2477,9 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "notely"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "keyring",
  "reqwest 0.12.28",

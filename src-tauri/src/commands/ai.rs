@@ -6,8 +6,8 @@ use crate::db::models::{
     ANALYSIS_STATUS_EMPTY, ANALYSIS_STATUS_FAILED, ANALYSIS_STATUS_OK,
 };
 use crate::db::{
-    feedback as feedback_repo, notes as note_repo, settings as settings_repo, tasks as task_repo,
-    usage as usage_repo,
+    feedback as feedback_repo, labels as label_repo, notes as note_repo, settings as settings_repo,
+    tasks as task_repo, usage as usage_repo,
 };
 use crate::domain::validation;
 use crate::error::{AppError, AppResult};
@@ -235,22 +235,39 @@ pub fn clear_ai_feedback(state: State<'_, AppState>) -> AppResult<usize> {
     state.db.with(feedback_repo::clear)
 }
 
+/// Legt eine Aufgabe aus einem Vorschlag an und uebernimmt dabei Ordner und
+/// Labels der Notiz.
+///
+/// Uebernommen wird einmalig beim Anlegen, nicht dauerhaft verknuepft. Zieht
+/// die Notiz spaeter in einen anderen Ordner, bleiben ihre Aufgaben, wo sie
+/// sind - eine Aufgabe, die ihre Einordnung im Ruecken des Benutzers aendert,
+/// waere schwerer zu erklaeren als eine, die stehen bleibt.
 fn persist(
     state: &State<'_, AppState>,
     note_id: &str,
     suggestion: &TaskSuggestion,
 ) -> AppResult<Task> {
+    let source = state.db.with(|conn| note_repo::get(conn, note_id))?;
+
     let draft = validation::task_draft(TaskDraft {
         title: suggestion.title.clone(),
         description: suggestion.description.clone(),
         due_date: suggestion.due_date.clone(),
         due_time: suggestion.due_time.clone(),
         source_note_id: Some(note_id.to_string()),
+        folder_id: source.folder_id.clone(),
         ai_generated: true,
         confidence: Some(suggestion.confidence),
         recurrence: None,
         priority: Default::default(),
     })?;
 
-    state.db.with(|conn| task_repo::create(conn, &draft))
+    state.db.with(|conn| {
+        let task = task_repo::create(conn, &draft)?;
+        if source.labels.is_empty() {
+            return Ok(task);
+        }
+        label_repo::set_for_task(conn, &task.id, &source.labels)?;
+        task_repo::get(conn, &task.id)
+    })
 }

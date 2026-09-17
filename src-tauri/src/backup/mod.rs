@@ -35,6 +35,9 @@ pub struct BackupPayload {
     /// ohne Nachfrage einspielen.
     #[serde(default)]
     pub profile: Option<String>,
+    /// Bilder samt Daten. Bei Sicherungen vor 0.10 fehlt der Eintrag.
+    #[serde(default)]
+    pub attachments: Vec<crate::db::attachments::AttachmentData>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,6 +56,7 @@ pub struct ImportSummary {
     pub tasks: usize,
     pub folders: usize,
     pub labels: usize,
+    pub images: usize,
     pub skipped: usize,
 }
 
@@ -86,6 +90,7 @@ pub fn collect(db: &Db, app_version: &str, profile: &str) -> AppResult<BackupPay
             tasks: tasks::list_all(conn)?,
             folders: folders::list(conn)?,
             labels: labels::list(conn)?,
+            attachments: crate::db::attachments::list_all(conn)?,
             settings: settings_repo::load(conn)?,
         })
     })
@@ -361,6 +366,7 @@ pub struct BackupCheck {
     pub tasks: usize,
     pub folders: usize,
     pub labels: usize,
+    pub images: usize,
     /// Fingerabdruck der Datei, um zwei Sicherungen vergleichen zu koennen.
     pub sha256: String,
     /// Profil, aus dem die Sicherung stammt; `None` bei alten Dateien.
@@ -378,6 +384,7 @@ fn failed_check(file_name: &str, message: impl Into<String>, sha256: String) -> 
         tasks: 0,
         folders: 0,
         labels: 0,
+        images: 0,
         sha256,
         profile: None,
     }
@@ -435,6 +442,7 @@ pub fn verify(path: &Path) -> AppResult<BackupCheck> {
         tasks: payload.tasks.len(),
         folders: payload.folders.len(),
         labels: payload.labels.len(),
+        images: payload.attachments.len(),
         sha256,
         profile: payload.profile,
     })
@@ -557,11 +565,17 @@ fn merge(conn: &Connection, payload: &BackupPayload) -> AppResult<ImportSummary>
             Some(id) if exists(conn, "notes", id)? => Some(id),
             _ => None,
         };
+        // Wie bei den Notizen: zeigt der Ordner ins Leere, wird die Zuordnung
+        // fallengelassen statt eine Fremdschluessel-Verletzung zu riskieren.
+        let folder = match task.folder_id.as_deref() {
+            Some(id) if exists(conn, "folders", id)? => Some(id),
+            _ => None,
+        };
         conn.execute(
             "INSERT INTO tasks (id, title, description, created_at, updated_at, due_date, due_time,
                                 completed, completed_at, source_note_id, ai_generated, confidence,
-                                snoozed_until, recurrence, series_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                                snoozed_until, recurrence, series_id, priority, folder_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 task.id,
                 task.title,
@@ -577,10 +591,34 @@ fn merge(conn: &Connection, payload: &BackupPayload) -> AppResult<ImportSummary>
                 task.confidence,
                 task.snoozed_until,
                 task.recurrence,
-                task.series_id
+                task.series_id,
+                task.priority.as_i64(),
+                folder
             ],
         )?;
+        // Labels der Aufgabe kamen bisher nicht mit zurueck.
+        for label_id in &task.labels {
+            if exists(conn, "labels", label_id)? {
+                conn.execute(
+                    "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                    params![task.id, label_id],
+                )?;
+            }
+        }
         summary.tasks += 1;
+    }
+
+    // Bilder zuletzt: erst jetzt stehen die Notizen, auf die sie zeigen.
+    // Ein einzelnes unlesbares Bild darf den ganzen Import nicht kippen.
+    for entry in &payload.attachments {
+        match crate::db::attachments::restore(conn, entry) {
+            Ok(true) => summary.images += 1,
+            Ok(false) => summary.skipped += 1,
+            Err(err) => {
+                logging::warn(TARGET, format!("Bild uebersprungen: {err}"));
+                summary.skipped += 1;
+            }
+        }
     }
 
     logging::info(TARGET, format!("Import abgeschlossen: {summary:?}"));
@@ -677,6 +715,7 @@ mod tests {
                     due_date: Some("2026-09-11".into()),
                     due_time: Some("12:00".into()),
                     source_note_id: Some(note.id.clone()),
+                    folder_id: None,
                     ai_generated: true,
                     confidence: Some(0.9),
                     recurrence: None,

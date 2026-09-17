@@ -25,6 +25,8 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal');
   const [rule, setRule] = useState(task?.recurrence ?? '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>(task?.labels ?? []);
+  const [folderId, setFolderId] = useState(task?.folderId ?? '');
+  const folders = useStore((state) => state.folders);
 
   const today = toIsoDate(new Date());
 
@@ -47,6 +49,7 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
               description,
               dueDate: dueDate || null,
               dueTime: dueTime || null,
+              folderId: folderId || null,
               recurrence,
               priority,
             })
@@ -56,6 +59,7 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
               dueDate: dueDate || null,
               dueTime: dueTime || null,
               sourceNoteId: null,
+              folderId: folderId || null,
               aiGenerated: false,
               confidence: null,
               recurrence,
@@ -140,6 +144,20 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
             value={dueTime}
             onChange={(event) => setDueTime(event.currentTarget.value)}
           />
+        </Field>
+        <Field label="Ordner">
+          <select
+            className="select input--compact"
+            value={folderId}
+            onChange={(event) => setFolderId(event.currentTarget.value)}
+          >
+            <option value="">Ohne Ordner</option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Priorität">
           <select

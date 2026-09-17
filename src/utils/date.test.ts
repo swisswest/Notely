@@ -24,6 +24,7 @@ function task(overrides: Partial<Task>): Task {
     completed: false,
     completedAt: null,
     sourceNoteId: null,
+    folderId: null,
     aiGenerated: false,
     confidence: null,
     snoozedUntil: null,

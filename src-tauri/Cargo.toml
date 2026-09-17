@@ -1,6 +1,6 @@
 [package]
 name = "notely"
-version = "0.8.0"
+version = "0.10.0"
 description = "Notizen, Aufgaben und Claude-Analyse für Windows"
 authors = ["Westcon"]
 edition = "2021"
@@ -31,6 +31,8 @@ keyring = { version = "3", features = ["windows-native"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
 sha2 = "0.10"
+# Bilddaten wandern als Base64 durch die IPC-Bruecke und in die Sicherung.
+base64 = "0.22"
 
 [features]
 default = []

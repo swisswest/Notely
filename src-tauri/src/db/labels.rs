@@ -245,6 +245,7 @@ mod tests {
                     due_date: None,
                     due_time: None,
                     source_note_id: None,
+                    folder_id: None,
                     ai_generated: false,
                     confidence: None,
                     recurrence: None,

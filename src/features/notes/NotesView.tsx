@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { LabelChip, LabelDots } from '@/components/LabelChip';
+import { Markdown } from '@/components/Markdown';
 import { Button, EmptyState, TextInput } from '@/components/ui';
 import { api } from '@/lib/ipc';
 import {
@@ -18,8 +19,18 @@ import {
 } from '@/lib/store';
 import type { AnalysisResult, Label, Note } from '@/types';
 import { formatDateTime } from '@/utils/date';
+import { ExportDialog } from './ExportDialog';
+import { firstImage, insertImage, isSupportedImage } from './imageInsert';
 import { OrganizeDialog } from './OrganizeDialog';
+import { SlashMenu } from './SlashMenu';
 import { VersionDialog } from './VersionDialog';
+import {
+  type SlashContext,
+  applyCommand,
+  filterCommands,
+  findSlash,
+  type SlashCommand,
+} from './slashCommands';
 
 const ANALYSIS_LABEL: Record<string, string> = {
   ok: 'analysiert',
@@ -54,6 +65,17 @@ export function NotesView() {
   const newNoteSignal = useStore((state) => state.newNoteSignal);
   const openNoteRequest = useStore((state) => state.openNote);
 
+  const [mode, setMode] = useState<'write' | 'preview'>('write');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  /**
+   * Bilder, die in eine noch nie gespeicherte Notiz eingefügt wurden. Sie
+   * haben noch keine Notiz-ID; die wird beim ersten Speichern nachgetragen.
+   */
+  const unassigned = useRef<string[]>([]);
+  /** Angefangener Slash-Befehl vor dem Cursor, samt Position des Menüs. */
+  const [slash, setSlash] = useState<(SlashContext & { top: number; left: number }) | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [draftFolder, setDraftFolder] = useState<string>('');
@@ -158,6 +180,14 @@ export function NotesView() {
 
       selectedIdRef.current = note.id;
       setSelectedId(note.id);
+
+      // Bilder aus dem Entwurf gehören jetzt zu einer Notiz. Ohne das würde
+      // die Aufräumung sie nach zwei Tagen als verwaist entfernen.
+      if (unassigned.current.length > 0) {
+        const ids = unassigned.current;
+        unassigned.current = [];
+        api.attachments.assign(note.id, ids).catch(reportError);
+      }
 
       // Waehrend des Speicherns kann weitergetippt worden sein.
       if (draftRef.current === text) {
@@ -264,6 +294,110 @@ export function NotesView() {
     await refreshNotes();
   };
 
+  /**
+   * Prüft nach jeder Cursorbewegung, ob vor dem Cursor ein Slash-Befehl
+   * angefangen wurde, und rechnet die Position des Menüs aus.
+   *
+   * Die Zeile wird über die Zeilenhöhe bestimmt statt über die echte
+   * Cursorposition. Die exakt zu messen hiesse, das Textfeld in einem
+   * unsichtbaren Zwilling nachzubauen - viel Aufwand dafür, dass das Menü
+   * ein paar Pixel weiter rechts steht.
+   */
+  const updateSlash = () => {
+    const area = editorRef.current;
+    if (!area) return;
+
+    const caret = area.selectionStart;
+    if (caret !== area.selectionEnd) {
+      setSlash(null);
+      return;
+    }
+
+    const found = findSlash(area.value, caret);
+    if (!found) {
+      setSlash(null);
+      return;
+    }
+
+    const lineHeight = Number.parseFloat(getComputedStyle(area).lineHeight) || 20;
+    const line = area.value.slice(0, found.start).split('\n').length;
+    const top = Math.max(area.offsetTop + line * lineHeight - area.scrollTop + 4, 4);
+
+    setSlash({ ...found, top, left: area.offsetLeft + 12 });
+  };
+
+  /** Setzt den gewählten Baustein ein und stellt den Cursor richtig. */
+  const insertCommand = (command: SlashCommand) => {
+    const area = editorRef.current;
+    if (!area || !slash) return;
+
+    // Der leere Baustein entfernt nur das getippte "/bild"; das Bild selbst
+    // kommt aus der Dateiauswahl, die gleich danach aufgeht.
+    const result = applyCommand(area.value, slash, command);
+    if (command.id === 'bild') {
+      setSlash(null);
+      setDraft(result.text);
+      setDirty(true);
+      setSaveState('dirty');
+      scheduleAutosave(result.text);
+      requestAnimationFrame(() => {
+        area.focus();
+        area.setSelectionRange(result.caret, result.caret);
+        fileInput.current?.click();
+      });
+      return;
+    }
+    setSlash(null);
+    setDraft(result.text);
+    setDirty(true);
+    setSaveState('dirty');
+    scheduleAutosave(result.text);
+
+    // Erst nach dem Render steht der neue Text im Feld; vorher zu setzen
+    // würde die Cursorposition wieder überschreiben.
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(result.caret, result.caret);
+    });
+  };
+
+  /**
+   * Ein Klick auf einen Link in der Vorschau kopiert die Adresse. Die Webview
+   * dorthin zu navigieren würde die Notiz aus dem Fenster werfen, und einen
+   * Browser starten darf Notely bewusst nicht - dafür gibt es keine Berechtigung.
+   */
+  const copyLink = (href: string) => {
+    navigator.clipboard
+      .writeText(href)
+      .then(() => showToast({ kind: 'info', message: 'Adresse kopiert' }))
+      .catch(() => showToast({ kind: 'error', message: 'Adresse liess sich nicht kopieren' }));
+  };
+
+  /** Legt ein Bild ab und schreibt die Referenz an die Cursorposition. */
+  const addImage = async (file: File) => {
+    const area = editorRef.current;
+    const caret = area ? area.selectionStart : draftRef.current.length;
+
+    try {
+      const result = await insertImage(file, selectedIdRef.current, draftRef.current, caret);
+      if (!selectedIdRef.current) unassigned.current.push(result.id);
+
+      setSlash(null);
+      draftRef.current = result.text;
+      setDraft(result.text);
+      setDirty(true);
+      setSaveState('dirty');
+      scheduleAutosave(result.text);
+
+      requestAnimationFrame(() => {
+        area?.focus();
+        area?.setSelectionRange(result.caret, result.caret);
+      });
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
   const folderName = (id: string | null) =>
     id ? (folders.find((folder) => folder.id === id)?.name ?? null) : null;
 
@@ -346,24 +480,130 @@ export function NotesView() {
       </div>
 
       <div className="notes__editor">
-        <textarea
-          ref={editorRef}
-          value={draft}
-          placeholder="Frei schreiben. Beispiel: Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren."
+        <div className="notes__editor-bar">
+          <div className="segmented" role="group" aria-label="Ansicht">
+            <button
+              type="button"
+              data-active={mode === 'write'}
+              onClick={() => setMode('write')}
+            >
+              Schreiben
+            </button>
+            <button
+              type="button"
+              data-active={mode === 'preview'}
+              onClick={() => {
+                setSlash(null);
+                setMode('preview');
+              }}
+            >
+              Vorschau
+            </button>
+          </div>
+
+          <span className="field__row">
+            <span className="field__hint">
+              {mode === 'write' ? 'Schrägstrich öffnet die Bausteine · Strg+V fügt Bilder ein' : 'Nur Ansicht'}
+            </span>
+            <Button
+              variant="ghost"
+              title="Bild einfügen - oder einfach mit Strg+V einsetzen"
+              onClick={() => fileInput.current?.click()}
+            >
+              Bild
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!draft.trim()}
+              title="Diese Notiz speichern, kopieren oder drucken"
+              onClick={() => setExportOpen(true)}
+            >
+              Exportieren
+            </Button>
+          </span>
+        </div>
+
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+          hidden
           onChange={(event) => {
-            const text = event.currentTarget.value;
-            setDraft(text);
-            setDirty(true);
-            setSaveState('dirty');
-            scheduleAutosave(text);
-          }}
-          onKeyDown={(event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-              event.preventDefault();
-              void saveAndMaybeAnalyze();
-            }
+            const file = event.currentTarget.files?.[0] ?? null;
+            // Zurücksetzen, sonst löst dieselbe Datei beim zweiten Mal nichts aus.
+            event.currentTarget.value = '';
+            if (isSupportedImage(file)) void addImage(file);
           }}
         />
+
+        {mode === 'preview' ? (
+          <div className="notes__preview">
+            <Markdown source={draft} onLink={copyLink} />
+          </div>
+        ) : (
+          <>
+            <textarea
+              ref={editorRef}
+              value={draft}
+              placeholder="Frei schreiben. Beispiel: Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren."
+              onChange={(event) => {
+                const text = event.currentTarget.value;
+                setDraft(text);
+                setDirty(true);
+                setSaveState('dirty');
+                scheduleAutosave(text);
+                // Nach dem Setzen des Werts, damit der Cursor schon steht.
+                requestAnimationFrame(updateSlash);
+              }}
+              onKeyDown={(event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                  event.preventDefault();
+                  void saveAndMaybeAnalyze();
+                  return;
+                }
+                // Pfeiltasten, Enter und Esc gehören dem Menü, solange es offen
+                // ist. Es hört selbst mit, hier wird nur nichts dazwischengefunkt.
+                if (slash && ['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
+                  return;
+                }
+                requestAnimationFrame(updateSlash);
+              }}
+              onClick={updateSlash}
+              onBlur={() => setSlash(null)}
+              onPaste={(event) => {
+                const file = firstImage(event.clipboardData);
+                if (!file) return;
+                // Sonst landet zusätzlich der Dateiname als Text im Feld.
+                event.preventDefault();
+                void addImage(file);
+              }}
+              onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes('Files')) return;
+                event.preventDefault();
+                if (!dropActive) setDropActive(true);
+              }}
+              onDragLeave={() => setDropActive(false)}
+              onDrop={(event) => {
+                const file = firstImage(event.dataTransfer);
+                setDropActive(false);
+                if (!file) return;
+                event.preventDefault();
+                void addImage(file);
+              }}
+              data-drop={dropActive}
+            />
+
+            {slash ? (
+              <SlashMenu
+                commands={filterCommands(slash.query)}
+                top={slash.top}
+                left={slash.left}
+                onPick={insertCommand}
+                onClose={() => setSlash(null)}
+              />
+            ) : null}
+          </>
+        )}
 
         <div className="notes__assign">
           <select
@@ -461,6 +701,28 @@ export function NotesView() {
         </div>
       </div>
 
+      {exportOpen && draft.trim() ? (
+        <ExportDialog
+          notes={
+            selected
+              ? [{ ...selected, content: draft }]
+              : [
+                  {
+                    id: 'entwurf',
+                    content: draft,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    analyzedAt: null,
+                    lastAnalysisStatus: null,
+                    folderId: draftFolder || null,
+                    deletedAt: null,
+                    labels: [],
+                  },
+                ]
+          }
+          onClose={() => setExportOpen(false)}
+        />
+      ) : null}
       {organizeOpen ? <OrganizeDialog onClose={() => setOrganizeOpen(false)} /> : null}
       {versionsOpen && selectedId ? (
         <VersionDialog

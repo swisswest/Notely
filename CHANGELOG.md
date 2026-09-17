@@ -11,6 +11,111 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 - Code-Signing gegen die SmartScreen-Warnung
 - Volltextsuche über SQLite FTS5
 
+## [0.10.0] - 2026-09-17
+
+### Neu
+
+- **Bilder in Notizen.** Screenshot machen, in die Notiz mit `Strg+V` - fertig.
+  Ebenso per Ziehen-und-Ablegen, über den Knopf „Bild" oder den Baustein
+  `/bild`. Erlaubt sind PNG, JPEG, GIF, WebP und BMP bis 10 MB je Bild.
+- Die Bilddaten liegen in einer eigenen Tabelle der Profil-Datenbank, im
+  Notiztext steht nur eine kurze Referenz. Das ist Absicht: ein eingebettetes
+  Bild würde bei jeder Analyse an Claude gehen, zwanzigmal im Versionsverlauf
+  liegen und in jeder Suche auftauchen. So bleibt der Notiztext das, was er
+  sein soll - Text. Die Beschreibung des Bildes liest Claude weiterhin mit und
+  kann daraus Aufgaben ableiten.
+- Export und Druck **betten die Bilder ein**, damit eine exportierte Datei für
+  sich steht. Im reinen Textexport bleibt die Beschreibung.
+- Bilder sind in der Sicherung enthalten und kommen beim Import zurück. Ein
+  einzelnes unlesbares Bild lässt den Import nicht scheitern.
+- **Hilfe im Programm** (`F1` oder „Hilfe" in der Seitenleiste). Erklärt die
+  Grundidee, die Bausteine, Diagramme, Bilder, Aufgaben, Profile und die
+  Sicherung - mit durchsuchbaren Abschnitten. Die Beispiele stehen als
+  Quelltext neben ihrem Ergebnis und werden mit demselben Renderer angezeigt
+  wie eine echte Notiz; es sind also keine Bildschirmfotos, die veralten
+  können. Die Liste der Bausteine und die eigenen Tageszeiten liest die Hilfe
+  aus der laufenden App.
+- **Aufgaben erben Ordner und Labels ihrer Notiz.** Was Claude aus einer Notiz
+  im Ordner „Arbeit" mit dem Label „Kunde X" ableitet, landet dort ebenfalls -
+  auch bei der Schnellerfassung und bei jedem Folgetermin einer Serie.
+  Aufgaben haben dafür neu einen Ordner; die Aufgabenliste lässt sich danach
+  filtern, und im Aufgaben-Dialog ist er von Hand änderbar.
+  Übernommen wird **einmalig beim Anlegen**, nicht dauerhaft verknüpft: zieht
+  die Notiz später in einen anderen Ordner, bleiben ihre Aufgaben stehen. Eine
+  Aufgabe, die ihre Einordnung im Rücken des Benutzers ändert, wäre schwerer
+  zu erklären als eine, die liegen bleibt.
+
+### Geändert
+
+- **Voreinstellung für aufbewahrte Sicherungen von 14 auf 5.** Mit Bildern
+  werden die Dateien deutlich grösser; vierzehn Stände davon füllen den
+  Sicherungsordner schneller, als es jemandem auffällt. Wer es anders will,
+  stellt es in den Einstellungen um.
+- Funktionstasten greifen jetzt auch, während der Cursor in einem Eingabefeld
+  steht. `F1` will man gerade dann, wenn man mitten im Schreiben nicht
+  weiterweiss.
+- Die CSP erlaubt bei `img-src` zusätzlich `blob:` - nötig, um ein Bild aus
+  der Datenbank anzuzeigen, ohne es als Zeichenkette doppelt im Speicher zu
+  halten. Ein eng umrissenes Token für lokal erzeugte Daten.
+
+### Behoben
+
+- **Der Sicherungs-Import hat Priorität und Labels von Aufgaben verworfen.**
+  Wer eine Sicherung einspielte, bekam alle Aufgaben mit normaler Priorität
+  und ohne Labels zurück. Beides wird jetzt mitgeschrieben und
+  wiederhergestellt. Bestehende Sicherungsdateien enthalten die Priorität
+  bereits - sie wurde beim Einspielen nur nicht gelesen.
+
+### Aufgeräumt
+
+- Bilder, die in keinem Notiztext mehr vorkommen, werden beim Start entfernt -
+  mit zwei Tagen Schonfrist, damit ein noch ungespeicherter Entwurf nicht
+  bestraft wird. Wird eine Notiz endgültig gelöscht, gehen ihre Bilder über
+  den Fremdschlüssel automatisch mit.
+
+## 0.9.0 - nicht einzeln veroeffentlicht
+
+Diese Aenderungen sind in 0.10.0 enthalten. Der Stand wurde nie als
+eigener Release herausgegeben - deshalb steht hier keine Verknuepfung.
+
+### Neu
+
+- **Bausteine im Editor.** Ein Schrägstrich öffnet eine Liste: Überschriften,
+  Listen, Aufgabenlisten, Zitat, Codeblock, Tabelle, Trennlinie, heutiges
+  Datum. Auswahl mit den Pfeiltasten, Enter fügt ein, Esc schliesst.
+  Gespeichert wird weiterhin reiner Text - Suche, Claude-Analyse,
+  Versionsverlauf und Export arbeiten unverändert damit.
+- **Vorschau** im Notizeditor, umschaltbar neben „Schreiben". Der Markdown-
+  Parser ist bewusst selbst geschrieben und liefert eine Datenstruktur statt
+  einer HTML-Zeichenkette: es gibt in der ganzen Kette kein
+  `dangerouslySetInnerHTML` und damit keine Stelle, an der Notizinhalt zu
+  Markup werden könnte.
+- **Diagramme mit Mermaid.** Ein Codeblock mit der Sprache `mermaid` wird in
+  der Vorschau gezeichnet. Bewusst textbasiert statt eingebettetem
+  Zeichenprogramm: so findet die Suche das Diagramm, Claude kann es lesen und
+  daraus Aufgaben ableiten, und der Export braucht keine Sonderbehandlung. Die
+  Bibliothek wird erst beim ersten Diagramm nachgeladen; scheitert das
+  Zeichnen, erscheint der Quelltext statt eines leeren Bereichs.
+- **Export einzelner Notizen** als Markdown, Text oder in sich geschlossenes
+  HTML, dazu Drucken als PDF und Kopieren in die Zwischenablage - als Markdown
+  oder formatiert für Mail und Word. Der Zielpfad kommt ausschliesslich aus
+  dem Windows-Speicherdialog, nie aus der Oberfläche.
+
+### Geändert
+
+- **`freezePrototype` steht jetzt auf `false`.** Mermaid zieht `dayjs`
+  statisch herein, und dessen Zuweisung an `valueOf` scheitert an
+  eingefrorenen Prototypen - jedes Diagramm brach schon beim Laden ab. Die
+  Einstellung schützte gegen Prototype Pollution, für die es in Notely keinen
+  erreichbaren Weg gibt: kein fremdes JavaScript dank CSP, kein HTML aus
+  Notizinhalt, kein `eval`, keine Zusammenführung fremder Objekte. Die
+  Abwägung steht ausführlich in [SECURITY.md](SECURITY.md). Strikte CSP,
+  Rust-Validierung, Parameter-Binding und minimale Capabilities bleiben.
+
+### Hinweis
+
+Nach dem Update einmal `npm install` ausführen - Mermaid ist neu dazugekommen.
+
 ## [0.8.0] - 2026-09-16
 
 ### Neu
@@ -205,7 +310,8 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
   konfigurierbare Tageszeiten, Windows-Benachrichtigungen mit Dublettenschutz,
   Tray-Icon, Autostart, Einstellungen, SQLite mit Migrationen.
 
-[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.8.0...HEAD
+[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/swisswest/Notely/releases/tag/v0.10.0
 [0.8.0]: https://github.com/swisswest/Notely/releases/tag/v0.8.0
 [0.7.1]: https://github.com/swisswest/Notely/releases/tag/v0.7.1
 [0.7.0]: https://github.com/swisswest/Notely/releases/tag/v0.7.0

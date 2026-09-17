@@ -32,8 +32,11 @@ export function useHotkeys(map: HotkeyMap): void {
       const handler = map[combination];
       if (!handler) return;
 
+      // Funktionstasten greifen auch im Eingabefeld: F1 will man gerade
+      // dann, wenn man mitten im Schreiben nicht weiterweiss.
+      const isFunctionKey = /^f\d{1,2}$/.test(event.key.toLowerCase());
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
-      if (!hasModifier && isTextEntry(event.target)) return;
+      if (!hasModifier && !isFunctionKey && isTextEntry(event.target)) return;
 
       event.preventDefault();
       handler(event);

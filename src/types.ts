@@ -48,6 +48,8 @@ export interface Task {
   completed: boolean;
   completedAt: string | null;
   sourceNoteId: string | null;
+  /** Ordner der Ursprungsnotiz, beim Anlegen übernommen. */
+  folderId: string | null;
   aiGenerated: boolean;
   confidence: number | null;
   snoozedUntil: string | null;
@@ -93,6 +95,7 @@ export interface TaskDraft {
   dueDate: string | null;
   dueTime: string | null;
   sourceNoteId: string | null;
+  folderId: string | null;
   aiGenerated: boolean;
   confidence: number | null;
   recurrence: string | null;
@@ -102,6 +105,7 @@ export interface TaskDraft {
 export interface TaskEdit {
   id: string;
   title: string;
+  folderId: string | null;
   description: string;
   dueDate: string | null;
   dueTime: string | null;
@@ -178,6 +182,7 @@ export interface BackupCheck {
   tasks: number;
   folders: number;
   labels: number;
+  images: number;
   sha256: string;
   /** Profil, aus dem die Sicherung stammt; null bei Dateien vor Version 0.8. */
   profile: string | null;
@@ -286,7 +291,30 @@ export interface ImportSummary {
   tasks: number;
   folders: number;
   labels: number;
+  images: number;
   skipped: number;
+}
+
+/** Ein Bild in einer Notiz - ohne die Daten. */
+export interface Attachment {
+  id: string;
+  noteId: string | null;
+  name: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface AttachmentPayload {
+  mime: string;
+  /** Base64. */
+  data: string;
+}
+
+export interface AttachmentUsage {
+  count: number;
+  bytes: number;
+  maxBytesPerImage: number;
 }
 
 export interface QuickResult {
@@ -330,4 +358,12 @@ export interface ModelInfo {
   displayName: string;
 }
 
-export type ViewId = 'today' | 'week' | 'inbox' | 'tasks' | 'notes' | 'trash' | 'settings';
+export type ViewId =
+  | 'today'
+  | 'week'
+  | 'inbox'
+  | 'tasks'
+  | 'notes'
+  | 'trash'
+  | 'settings'
+  | 'hilfe';

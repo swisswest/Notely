@@ -55,6 +55,7 @@ mod tests {
                 due_date: Some("2026-09-11".into()),
                 due_time: Some("12:00".into()),
                 source_note_id: None,
+                folder_id: None,
                 ai_generated: false,
                 confidence: None,
                 recurrence: None,

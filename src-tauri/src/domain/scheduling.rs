@@ -114,6 +114,7 @@ mod tests {
             completed: false,
             completed_at: None,
             source_note_id: None,
+            folder_id: None,
             ai_generated: true,
             confidence: Some(0.95),
             snoozed_until: None,

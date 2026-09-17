@@ -44,6 +44,25 @@ typisierte Commands.
 Fensterrechte. Keine Shell-Ausführung, kein freier Dateisystemzugriff, kein
 Asset-Protokoll. Die CSP erlaubt ausschliesslich eigene Ressourcen und IPC.
 
+**`freezePrototype` steht seit 0.9.0 auf `false`.** Die Einstellung fror die
+eingebauten JavaScript-Prototypen ein und schützte damit gegen Prototype
+Pollution. Sie musste weichen, weil Mermaid `dayjs` statisch hereinzieht und
+dayjs `valueOf` auf seinem Prototyp per Zuweisung setzt - was an einem
+eingefrorenen `Object.prototype` scheitert und den Import jedes Diagramms
+abbrechen liess.
+
+Die Abwägung im Klartext: Prototype Pollution braucht einen Weg, auf dem fremde
+Daten in eine tiefe Objekt-Zusammenführung laufen. Den gibt es in Notely nicht.
+Die CSP lässt kein fremdes JavaScript zu, die Vorschau baut React-Elemente
+statt HTML, Claudes Antwort passiert die Validierung in Rust und kommt als
+typisierte Werte an - nie als Schlüssel, die irgendwo hineingemischt werden.
+Es gibt weder `eval` noch eine Deep-Merge-Funktion mit fremden Daten. Die
+Einstellung war hier zusätzliche Absicherung ohne erreichbaren Angriffsweg.
+
+Alles, was tatsächlich trägt, bleibt unverändert: die strikte CSP, die
+Validierung auf der Rust-Seite, das Parameter-Binding und die minimalen
+Capabilities.
+
 ## Bekannte Einschränkungen
 
 - **Die Installer sind nicht signiert.** Windows SmartScreen warnt entsprechend.
@@ -54,5 +73,8 @@ Asset-Protokoll. Die CSP erlaubt ausschliesslich eigene Ressourcen und IPC.
 - **Die Auswertung speichert einen Notizausschnitt** (die ersten 200 Zeichen)
   als Kontext. Wer das nicht möchte, schaltet die Erfassung in den Einstellungen
   ab und löscht den Verlauf.
+- **Bilder liegen unverschlüsselt in der Profil-Datenbank** und sind in jeder
+  Sicherung enthalten. Eine Sicherung mit Screenshots kann vertraulicher sein,
+  als der Dateiname vermuten lässt.
 - **Sicherungen sind Klartext-JSON.** Sie enthalten keine Secrets, aber alle
   Notizen — der Zielordner sollte entsprechend gewählt werden.

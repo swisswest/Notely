@@ -1,5 +1,7 @@
 pub mod ai;
+pub mod attachments;
 pub mod backup;
+pub mod export;
 pub mod notes;
 pub mod organization;
 pub mod profiles;

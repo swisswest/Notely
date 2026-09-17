@@ -173,6 +173,7 @@ mod tests {
             due_date: date.map(str::to_string),
             due_time: time_value.map(str::to_string),
             source_note_id: None,
+            folder_id: None,
             ai_generated: false,
             confidence: None,
             recurrence: None,

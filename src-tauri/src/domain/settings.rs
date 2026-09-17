@@ -208,7 +208,8 @@ impl Default for BackupSettings {
         Self {
             enabled: true,
             directory: String::new(),
-            keep: 14,
+            // Bilder liegen mit in der Sicherung, deshalb weniger Staende.
+            keep: 5,
             last_backup_at: None,
         }
     }

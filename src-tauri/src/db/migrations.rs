@@ -145,6 +145,32 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX idx_task_labels_label ON task_labels(label_id);
     "#,
+    // 6 - Bildanhaenge in Notizen
+    r#"
+    -- Die Bilddaten liegen bewusst in derselben Datei wie die Notizen. Ein
+    -- Bild gehoert untrennbar zu seiner Notiz: so bleiben Profilwechsel,
+    -- Papierkorb und Loeschen ohne Zutun stimmig, und es kann keine Datei
+    -- zurueckbleiben, zu der es keine Notiz mehr gibt.
+    CREATE TABLE attachments (
+        id         TEXT PRIMARY KEY,
+        note_id    TEXT REFERENCES notes(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        mime       TEXT NOT NULL,
+        bytes      BLOB NOT NULL,
+        size       INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX idx_attachments_note ON attachments(note_id);
+    "#,
+    // 7 - Aufgaben kennen den Ordner ihrer Notiz
+    r#"
+    -- Bestandsaufgaben bleiben ohne Ordner. Ein nachtraegliches Zuordnen
+    -- waere geraten, und geratene Daten sind schlimmer als fehlende.
+    ALTER TABLE tasks ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL;
+
+    CREATE INDEX idx_tasks_folder ON tasks(folder_id);
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -227,6 +253,72 @@ mod tests {
             .expect("note");
         assert_eq!(content, "Bestandsnotiz");
         assert!(folder.is_none());
+    }
+
+    #[test]
+    fn upgrade_from_version_six_keeps_tasks_and_leaves_the_folder_empty() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+
+        for (index, migration) in MIGRATIONS.iter().take(6).enumerate() {
+            conn.execute_batch(migration)
+                .unwrap_or_else(|err| panic!("schema v{}: {err}", index + 1));
+        }
+        conn.execute_batch("PRAGMA user_version = 6")
+            .expect("version");
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, updated_at)
+             VALUES ('t1', 'Bestandsaufgabe', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        run(&conn).expect("upgrade");
+
+        let (title, folder): (String, Option<String>) = conn
+            .query_row(
+                "SELECT title, folder_id FROM tasks WHERE id = 't1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("task");
+        assert_eq!(title, "Bestandsaufgabe");
+        assert_eq!(folder, None, "Bestand bekommt keinen geratenen Ordner");
+    }
+
+    #[test]
+    fn upgrade_from_version_five_keeps_notes_and_adds_the_image_table() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+
+        for (index, migration) in MIGRATIONS.iter().take(5).enumerate() {
+            conn.execute_batch(migration)
+                .unwrap_or_else(|err| panic!("schema v{}: {err}", index + 1));
+        }
+        conn.execute_batch("PRAGMA user_version = 5")
+            .expect("version");
+        conn.execute(
+            "INSERT INTO notes (id, content, created_at, updated_at)
+             VALUES ('n1', 'Bestandsnotiz', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        run(&conn).expect("upgrade");
+
+        let content: String = conn
+            .query_row("SELECT content FROM notes WHERE id = 'n1'", [], |row| {
+                row.get(0)
+            })
+            .expect("notiz");
+        assert_eq!(
+            content, "Bestandsnotiz",
+            "Bestand muss die Migration ueberleben"
+        );
+
+        // Die Tabelle ist da und noch leer.
+        let images: i64 = conn
+            .query_row("SELECT COUNT(*) FROM attachments", [], |row| row.get(0))
+            .expect("tabelle");
+        assert_eq!(images, 0);
     }
 
     #[test]

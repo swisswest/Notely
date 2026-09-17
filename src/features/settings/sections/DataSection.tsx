@@ -116,7 +116,7 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
       setForeign(null);
       showToast({
         kind: 'success',
-        message: `Importiert: ${summary.notes} Notizen, ${summary.tasks} Aufgaben, ${summary.skipped} bereits vorhanden`,
+        message: `Importiert: ${summary.notes} Notizen, ${summary.tasks} Aufgaben, ${summary.images} Bilder, ${summary.skipped} bereits vorhanden`,
       });
       await refreshAll();
     } catch (error) {
@@ -233,7 +233,8 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
         <h3 className="settings__group-title">Sicherung</h3>
         <p className="field__hint" style={{ marginBottom: 10 }}>
           Notizen und Aufgaben liegen nur auf diesem Rechner. Die Sicherung schreibt alles als
-          JSON-Datei in einen Ordner deiner Wahl - kopier den ab und zu weg.
+          JSON-Datei in einen Ordner deiner Wahl - kopier den ab und zu weg. Bilder sind
+          enthalten, die Datei wird dadurch entsprechend gross.
         </p>
 
         <div className="field">
@@ -376,7 +377,8 @@ export function DataSection({ settings, onChange }: DataSectionProps) {
                 {check.ok ? (
                   <p className="field__hint">
                     {check.notes} Notizen · {check.tasks} Aufgaben · {check.folders} Ordner ·{' '}
-                    {check.labels} Labels · aus Version {check.appVersion || 'unbekannt'} ·{' '}
+                    {check.labels} Labels · {check.images} Bilder · aus Version{' '}
+                    {check.appVersion || 'unbekannt'} ·{' '}
                     {check.profile ? `Profil ${check.profile}` : 'ohne Profil (vor Version 0.8)'}
                   </p>
                 ) : null}

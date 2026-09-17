@@ -55,7 +55,10 @@ pub fn run() {
             match db.with(|conn| {
                 let notes = crate::db::notes::purge_expired(conn, commands::trash::RETENTION_DAYS)?;
                 let tasks = crate::db::tasks::purge_expired(conn, commands::trash::RETENTION_DAYS)?;
-                Ok(notes + tasks)
+                // Bilder, die in keinem Notiztext mehr vorkommen. Die Schonfrist
+                // schuetzt Bilder in einem Entwurf, der noch nie gespeichert wurde.
+                let images = crate::db::attachments::purge_unreferenced(conn, 48)?;
+                Ok(notes + tasks + images)
             }) {
                 Ok(count) if count > 0 => logging::info(
                     "app",
@@ -218,6 +221,12 @@ pub fn run() {
             commands::profiles::rename_profile,
             commands::profiles::remove_profile,
             commands::profiles::switch_profile,
+            commands::export::save_export,
+            commands::attachments::add_attachment,
+            commands::attachments::get_attachment,
+            commands::attachments::assign_attachments,
+            commands::attachments::delete_attachment,
+            commands::attachments::attachment_usage,
         ])
         .run(tauri::generate_context!())
         .expect("Notely konnte nicht gestartet werden");

@@ -28,8 +28,11 @@ export function TasksView() {
   const [filter, setFilter] = useState<FilterId>('all');
   const [onlyImportant, setOnlyImportant] = useState(false);
   const [labelFilter, setLabelFilter] = useState<string[]>([]);
+  /** "all", "none" oder eine Ordner-ID - wie bei den Notizen. */
+  const [folderFilter, setFolderFilter] = useState('all');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const labels = useStore((state) => state.labels);
+  const folders = useStore((state) => state.folders);
   const now = new Date();
 
   const visible = useMemo(() => {
@@ -40,6 +43,10 @@ export function TasksView() {
         if (labelFilter.length > 0 && !labelFilter.every((id) => task.labels.includes(id))) {
           return false;
         }
+        if (folderFilter === 'none' && task.folderId) return false;
+        if (folderFilter !== 'all' && folderFilter !== 'none' && task.folderId !== folderFilter) {
+          return false;
+        }
         const bucket = bucketOf(task, reference);
         if (filter === 'all') return !task.completed;
         if (filter === 'week') {
@@ -48,7 +55,7 @@ export function TasksView() {
         return bucket === filter;
       })
       .sort(compareTasks);
-  }, [tasks, filter, onlyImportant, labelFilter]);
+  }, [tasks, filter, onlyImportant, labelFilter, folderFilter]);
 
   const label = FILTERS.find((entry) => entry.id === filter)?.label ?? 'Aufgaben';
   const selectedIds = [...selected].filter((id) => visible.some((task) => task.id === id));
@@ -116,6 +123,26 @@ export function TasksView() {
         >
           Nur wichtige
         </Button>
+
+        {folders.length > 0 ? (
+          <select
+            className="select input--compact"
+            value={folderFilter}
+            title="Nach dem Ordner der Ursprungsnotiz filtern"
+            onChange={(event) => {
+              setFolderFilter(event.currentTarget.value);
+              clearSelection();
+            }}
+          >
+            <option value="all">Alle Ordner</option>
+            <option value="none">Ohne Ordner</option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       {labels.length > 0 ? (
