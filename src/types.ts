@@ -76,6 +76,17 @@ export interface SearchResults {
   tasks: Task[];
 }
 
+/** Antwort auf eine Frage an die eigenen Notizen. */
+export interface NoteAnswer {
+  /** Stand die Antwort wirklich in den Notizen? */
+  found: boolean;
+  answer: string;
+  /** Die Notizen, auf die sich die Antwort beruft. Bei `found` nie leer. */
+  sources: Note[];
+  /** Wie viele Notizen durchsucht wurden. */
+  searched: number;
+}
+
 export interface UsagePeriod {
   analyses: number;
   inputTokens: number;

@@ -26,6 +26,19 @@ Datenbank. Das Modell schreibt nie direkt in die Datenbank.
 explizit an, Anweisungen innerhalb einer Notiz nicht auszuführen, sondern
 höchstens als Aufgabe zu erfassen.
 
+**Fragen an die Notizen (seit 0.11.0) laufen in zwei Schritten.** Erst sucht
+SQLite lokal die passenden Notizen heraus, dann liest Claude nur diese —
+höchstens acht, zusammen auf ein Zeichenbudget begrenzt. Der gesamte
+Notizbestand wird nie übertragen; was nicht zur Frage passt, verlässt den
+Rechner nicht. Findet die lokale Suche nichts, unterbleibt der API-Aufruf
+ganz.
+
+Die Antwort wird anschliessend genauso behandelt wie jede andere
+Modellausgabe: die genannten Quell-IDs werden gegen die Notizen geprüft, die
+tatsächlich mitgeschickt wurden. Eine erfundene ID fällt heraus, und eine
+Antwort, für die danach keine Quelle mehr übrig bleibt, gilt als „nichts
+gefunden". Lieber keine Antwort als eine, die sich auf nichts berufen kann.
+
 **Updates** werden nur installiert, wenn die minisign-Signatur des Archivs zum
 öffentlichen Schlüssel in `tauri.conf.json` passt. Der private Schlüssel liegt
 ausschliesslich als GitHub-Secret vor und taucht in keinem Build-Log auf. Der
@@ -38,7 +51,10 @@ Einstellungen abschalten und der Verlauf jederzeit löschen.
 
 **Datenbank:** alle Zugriffe über Parameter-Binding, auch die Suche mit
 escapten LIKE-Wildcards. Das Frontend kann kein SQL absetzen — es kennt nur
-typisierte Commands.
+typisierte Commands. Der Volltextindex bekommt keinen Rohtext: aus der
+Eingabe werden nur Buchstaben und Ziffern übernommen und daraus ein
+FTS5-Ausdruck gebaut, sodass Anführungszeichen oder Operatoren wie `NEAR` den
+Ausdruck nicht aufbrechen können.
 
 **Tauri:** die Capabilities enthalten nur die tatsächlich benötigten
 Fensterrechte. Keine Shell-Ausführung, kein freier Dateisystemzugriff, kein

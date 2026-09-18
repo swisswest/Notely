@@ -171,6 +171,40 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX idx_tasks_folder ON tasks(folder_id);
     "#,
+    // 8 - Volltextindex ueber Notizen
+    r#"
+    -- Der Index ist abgeleitete Information: er laesst sich jederzeit aus
+    -- `notes` neu aufbauen. Er haengt an `notes.rowid`. Das ist stabil,
+    -- solange niemand VACUUM ausfuehrt - danach koennen rowids einer Tabelle
+    -- ohne INTEGER PRIMARY KEY neu vergeben werden. Wer VACUUM einbaut, muss
+    -- anschliessend `notes::rebuild_index` aufrufen.
+    --
+    -- remove_diacritics 2 sorgt dafuer, dass "Buero" und "Büro" denselben
+    -- Token ergeben. Eine Stammformreduktion gibt es bewusst nicht: der
+    -- porter-Tokenizer von FTS5 kann nur Englisch und wuerde deutsche
+    -- Woerter eher verstuemmeln als zusammenfuehren.
+    CREATE VIRTUAL TABLE notes_fts USING fts5(
+        content,
+        note_id UNINDEXED,
+        tokenize = 'unicode61 remove_diacritics 2'
+    );
+
+    INSERT INTO notes_fts (rowid, content, note_id)
+        SELECT rowid, content, id FROM notes;
+
+    CREATE TRIGGER notes_fts_insert AFTER INSERT ON notes BEGIN
+        INSERT INTO notes_fts (rowid, content, note_id)
+            VALUES (new.rowid, new.content, new.id);
+    END;
+
+    CREATE TRIGGER notes_fts_update AFTER UPDATE OF content ON notes BEGIN
+        UPDATE notes_fts SET content = new.content WHERE rowid = new.rowid;
+    END;
+
+    CREATE TRIGGER notes_fts_delete AFTER DELETE ON notes BEGIN
+        DELETE FROM notes_fts WHERE rowid = old.rowid;
+    END;
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -379,5 +413,90 @@ mod tests {
             .expect("task");
         assert_eq!(title, "Bestandsaufgabe");
         assert!(recurrence.is_none());
+    }
+
+    /// Der Volltextindex muss den Bestand mitbringen, nicht erst neue Notizen.
+    /// Eine Datenbank, in der nur ab jetzt Geschriebenes auffindbar ist, waere
+    /// schlimmer als gar kein Index - man wuerde dem Ergebnis glauben.
+    #[test]
+    fn upgrade_from_version_seven_indexes_existing_notes() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+
+        for (index, migration) in MIGRATIONS.iter().take(7).enumerate() {
+            conn.execute_batch(migration)
+                .unwrap_or_else(|err| panic!("schema v{}: {err}", index + 1));
+        }
+        conn.execute_batch("PRAGMA user_version = 7")
+            .expect("version");
+        conn.execute(
+            "INSERT INTO notes (id, content, created_at, updated_at)
+             VALUES ('n1', 'Auto steht im Parkhaus P3, Ebene 2',
+                     '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        run(&conn).expect("upgrade");
+
+        let found: String = conn
+            .query_row(
+                "SELECT note_id FROM notes_fts WHERE notes_fts MATCH 'parkhaus'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Bestandsnotiz im Index");
+        assert_eq!(found, "n1");
+    }
+
+    /// Die Trigger sind der eigentliche Vertrag: der Index darf nie von der
+    /// Tabelle abweichen, egal ueber welchen Weg geschrieben wurde.
+    #[test]
+    fn the_index_follows_inserts_updates_and_deletes() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        run(&conn).expect("migrations");
+
+        conn.execute(
+            "INSERT INTO notes (id, content, created_at, updated_at)
+             VALUES ('n1', 'Velo im Keller', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+        assert_eq!(matches(&conn, "velo"), 1, "neu angelegt");
+
+        conn.execute("UPDATE notes SET content = 'Velo beim Bahnhof' WHERE id = 'n1'", [])
+            .expect("update");
+        assert_eq!(matches(&conn, "keller"), 0, "alter Text ist weg");
+        assert_eq!(matches(&conn, "bahnhof"), 1, "neuer Text ist da");
+
+        conn.execute("DELETE FROM notes WHERE id = 'n1'", [])
+            .expect("delete");
+        assert_eq!(matches(&conn, "bahnhof"), 0, "geloescht raeumt den Index");
+    }
+
+    /// Umlaute und ihre Umschreibung muessen denselben Treffer ergeben -
+    /// sonst findet "Buero" die Notiz mit "Büro" nicht.
+    #[test]
+    fn diacritics_are_folded() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        run(&conn).expect("migrations");
+        conn.execute(
+            "INSERT INTO notes (id, content, created_at, updated_at)
+             VALUES ('n1', 'Schlüssel liegt im Büro', '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        assert_eq!(matches(&conn, "buro"), 1, "ohne Umlaut");
+        assert_eq!(matches(&conn, "büro"), 1, "mit Umlaut");
+        assert_eq!(matches(&conn, "schlussel"), 1, "ue zu u");
+    }
+
+    fn matches(conn: &Connection, term: &str) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM notes_fts WHERE notes_fts MATCH ?1",
+            [term],
+            |row| row.get(0),
+        )
+        .expect("match")
     }
 }

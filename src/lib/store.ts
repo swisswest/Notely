@@ -133,8 +133,20 @@ export function requestNewNote(): void {
   setState({ newNoteSignal: state.newNoteSignal + 1 });
 }
 
-/** Öffnet eine bestimmte Notiz im Editor - aus der Suche heraus. */
-export function requestOpenNote(id: string): void {
+/**
+ * Öffnet eine bestimmte Notiz im Editor - aus der Suche, aus einer Aufgabe
+ * oder aus der Antwort auf eine Frage heraus.
+ *
+ * Die Filter werden vorher geräumt. Ohne das bleibt das Öffnen wirkungslos,
+ * sobald die Notiz gerade durch Ordner, Label oder Suchtext aus der Liste
+ * fällt: die Ansicht sucht sie in der geladenen Liste und findet sie nicht.
+ * Ein Klick, der sichtbar nichts tut, ist schlimmer als ein zurückgesetzter
+ * Filter.
+ */
+export async function requestOpenNote(id: string): Promise<void> {
+  const filtered =
+    state.noteFolder !== 'all' || state.noteLabels.length > 0 || state.noteSearch !== '';
+  if (filtered) await clearNoteFilters();
   setState({ openNote: { id, token: (state.openNote?.token ?? 0) + 1 } });
 }
 

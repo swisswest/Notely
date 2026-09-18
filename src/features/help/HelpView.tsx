@@ -203,6 +203,41 @@ export function HelpView() {
         ),
       },
       {
+        id: 'suchen',
+        title: 'Suchen und Notizen fragen',
+        keywords: 'suche suchen finden frage fragen antwort quelle volltext rechtsklick kontextmenü',
+        body: (
+          <>
+            <p>
+              Das Feld über der Notizliste filtert beim Tippen. Es sucht nach Zeichenfolgen, auch
+              mitten im Wort: <code>park</code> findet <code>Parkhaus</code>.
+            </p>
+            <p>
+              Der Knopf <strong>Fragen</strong> daneben macht etwas anderes. Dort stellst du eine
+              ganze Frage - „Wo habe ich mein Auto geparkt?" - und bekommst eine Antwort in einem
+              Satz, zusammen mit den Notizen, in denen sie steht. Ein Klick auf eine Quelle öffnet
+              die Notiz.
+            </p>
+            <p>
+              Der Weg dahin geht in zwei Schritten: erst sucht Notely auf deinem Rechner die
+              Notizen heraus, die zur Frage passen, dann liest Claude nur diese. Damit verlassen
+              nie alle Notizen den Rechner, sondern höchstens acht - und was nicht zur Frage passt,
+              geht gar nicht erst raus. Findet die Suche nichts, wird auch nicht gefragt.
+            </p>
+            <p>
+              <strong>Steht die Antwort nirgends, sagt Notely das.</strong> Eine Antwort ohne
+              Notiz, auf die sie sich beruft, wird verworfen - lieber „dazu steht nichts da" als
+              eine erfundene Parkhausnummer.
+            </p>
+            <p style={{ marginTop: 14 }}>
+              Ein <strong>Rechtsklick</strong> auf eine Notiz in der Liste öffnet ein Menü: Ordner
+              wechseln, Labels setzen, in den Papierkorb legen. Das arbeitet auf der angeklickten
+              Notiz, nicht auf der offenen - dein Entwurf im Editor bleibt stehen.
+            </p>
+          </>
+        ),
+      },
+      {
         id: 'aufgaben',
         title: 'Aufgaben, Termine und Wiederholungen',
         keywords: 'task heute woche inbox termin priorität serie wiederkehrend',

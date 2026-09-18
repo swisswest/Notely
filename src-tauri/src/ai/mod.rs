@@ -1,3 +1,4 @@
+pub mod ask;
 pub mod client;
 pub mod prompt;
 pub mod schema;

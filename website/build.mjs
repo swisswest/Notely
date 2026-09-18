@@ -276,7 +276,7 @@ function renderHome({ latest, roadmap }) {
   const security = [
     ['API-Key im Windows Credential Manager', 'Nie im Code, nie in der Datenbank, nie im Log, nie im Frontend.'],
     ['Claude-Antworten gelten als nicht vertrauenswürdig', 'Struktur, Datum, Uhrzeit, Confidence und Textlänge werden validiert. Claude schreibt nie direkt in die Datenbank.'],
-    ['Daten bleiben lokal', 'SQLite unter %APPDATA%. Nur der Text der analysierten Notiz geht an die Anthropic-API – sonst nichts.'],
+    ['Daten bleiben lokal', 'SQLite unter %APPDATA%. An die Anthropic-API geht nur der Text der Notiz, die analysiert wird – und bei einer Frage an die Notizen die wenigen, die dazu passen.'],
     ['Minimale Angriffsfläche', 'Strikte CSP, keine Shell-Ausführung, kein freier Dateisystemzugriff, SQL ausschliesslich mit Parameter-Binding.'],
   ];
 
@@ -693,7 +693,7 @@ function renderIt({ latest }) {
       <ul class="keys">
         ${network.map(([host, port, note]) => `<li style="display:block;padding:14px 18px"><div style="font-family:var(--mono);font-size:13px">${esc(host)}</div><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${esc(port)} · ${esc(note)}</div></li>`).join('\n        ')}
       </ul>
-      <div class="note">${icon.warn(16)}<p><strong>Die Datenschutz-Entscheidung:</strong> Analysiert ein Benutzer eine Notiz, wird deren Text an die Anthropic-API übertragen. Das passiert nur mit einem hinterlegten API-Key, nur auf Auslösung hin und nie automatisch im Hintergrund. Ohne Key funktioniert alles ausser dieser Analyse. Ob das für Ihre Daten zulässig ist, ist eine organisatorische Frage – keine technische.</p></div>
+      <div class="note">${icon.warn(16)}<p><strong>Die Datenschutz-Entscheidung:</strong> Analysiert ein Benutzer eine Notiz, wird deren Text an die Anthropic-API übertragen. Seit 0.11.0 gibt es ausserdem „Notizen fragen“: dort wird zuerst lokal gesucht und anschliessend werden <strong>bis zu acht</strong> passende Notizen übertragen – mehrere auf einmal, aber nie der ganze Bestand. Beides passiert nur mit hinterlegtem API-Key, nur auf Knopfdruck und nie automatisch im Hintergrund. Ohne Key funktioniert alles ausser diesen beiden Funktionen. Ob das für Ihre Daten zulässig ist, ist eine organisatorische Frage – keine technische.</p></div>
     </div>
   </div>
 </section>

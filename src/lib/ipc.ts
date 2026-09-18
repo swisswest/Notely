@@ -16,6 +16,7 @@ import type {
   MarkdownImportSummary,
   ModelInfo,
   Note,
+  NoteAnswer,
   Attachment,
   AttachmentPayload,
   AttachmentUsage,
@@ -148,6 +149,7 @@ export const api = {
   },
   search: (term: string, limit?: number) =>
     call<SearchResults>('search', { term, limit: limit ?? null }),
+  askNotes: (question: string) => call<NoteAnswer>('ask_notes', { question }),
   ai: {
     analyze: (noteId: string) => call<AnalysisResult>('analyze_note', { noteId }),
     analyzeMany: (noteIds: string[]) => call<BatchAnalysis>('analyze_notes', { noteIds }),

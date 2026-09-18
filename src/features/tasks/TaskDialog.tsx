@@ -83,7 +83,7 @@ export function TaskDialog({ task, onClose }: TaskDialogProps) {
   const openSource = () => {
     if (!task?.sourceNoteId) return;
     requestView('notes');
-    requestOpenNote(task.sourceNoteId);
+    void requestOpenNote(task.sourceNoteId);
     onClose();
   };
 

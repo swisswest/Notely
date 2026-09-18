@@ -43,8 +43,15 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
 
 ## Funktionen
 
-- **Notizen** mit Ordnern, frei benennbaren Labels und Volltextsuche. Die
-  ursprüngliche Notiz bleibt immer erhalten, auch wenn die Analyse fehlschlägt.
+- **Notizen** mit Ordnern, frei benennbaren Labels und Volltextsuche (SQLite
+  FTS5). Die ursprüngliche Notiz bleibt immer erhalten, auch wenn die Analyse
+  fehlschlägt. Rechtsklick in der Liste sortiert eine Notiz ein, ohne sie zu
+  öffnen.
+- **Notizen fragen**: eine ganze Frage stellen („Wo habe ich mein Auto
+  geparkt?") und einen Satz Antwort samt Quellnotiz bekommen. Gesucht wird
+  zuerst lokal; nur die passenden Notizen — höchstens acht — gehen an Claude.
+  Eine Antwort, die sich auf keine mitgeschickte Notiz berufen kann, wird
+  verworfen.
 - **Bausteine per Schrägstrich** (`/h1`, `/liste`, `/todo`, `/tabelle`,
   `/diagramm` …) und eine umschaltbare Vorschau. Gespeichert wird reiner
   Markdown-Text, damit Suche, Analyse und Verlauf unverändert funktionieren.

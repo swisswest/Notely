@@ -58,7 +58,7 @@ export function useTaskActions(): TaskActions {
   const openSource = useCallback((task: Task) => {
     if (!task.sourceNoteId) return;
     requestView('notes');
-    requestOpenNote(task.sourceNoteId);
+    void requestOpenNote(task.sourceNoteId);
   }, []);
 
   return {

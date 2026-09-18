@@ -36,9 +36,7 @@ impl ClaudeClient {
         Ok(Self { http })
     }
 
-    /// Führt einen Tool-Call aus und liefert ausschliesslich das Tool-Input
-    /// zurück. Freitext des Modells wird bewusst ignoriert.
-    /// Liefert das Tool-Input und den gemeldeten Token-Verbrauch.
+    /// Fuehrt den Werkzeugaufruf zur Aufgabenextraktion aus.
     pub async fn extract_tasks(
         &self,
         api_key: &str,
@@ -48,13 +46,43 @@ impl ClaudeClient {
         user_message: &str,
         tool: Value,
     ) -> AppResult<(Value, TokenUsage)> {
+        self.tool_call(
+            api_key,
+            model,
+            max_tokens,
+            system,
+            user_message,
+            tool,
+            TOOL_NAME,
+        )
+        .await
+    }
+
+    /// Führt einen Tool-Call aus und liefert ausschliesslich das Tool-Input
+    /// zurück. Freitext des Modells wird bewusst ignoriert.
+    /// Liefert das Tool-Input und den gemeldeten Token-Verbrauch.
+    ///
+    /// Das Modell wird auf genau dieses Werkzeug festgelegt, und die Antwort
+    /// wird auch nur daraus gelesen. Ein Werkzeugaufruf unter anderem Namen
+    /// gilt als ungueltige Antwort - das ist die Stelle, an der freier Text
+    /// des Modells die Anwendung gar nicht erst erreicht.
+    pub async fn tool_call(
+        &self,
+        api_key: &str,
+        model: &str,
+        max_tokens: u32,
+        system: &str,
+        user_message: &str,
+        tool: Value,
+        tool_name: &str,
+    ) -> AppResult<(Value, TokenUsage)> {
         let body = json!({
             "model": model,
             "max_tokens": max_tokens,
             "temperature": 0,
             "system": system,
             "tools": [tool],
-            "tool_choice": { "type": "tool", "name": TOOL_NAME },
+            "tool_choice": { "type": "tool", "name": tool_name },
             "messages": [{ "role": "user", "content": user_message }]
         });
 
@@ -71,7 +99,7 @@ impl ClaudeClient {
 
         let payload = read_json(response).await?;
         let usage = extract_usage(&payload);
-        Ok((extract_tool_input(&payload)?, usage))
+        Ok((extract_tool_input(&payload, tool_name)?, usage))
     }
 
     pub async fn list_models(&self, api_key: &str) -> AppResult<Vec<ModelInfo>> {
@@ -178,7 +206,7 @@ fn extract_usage(payload: &Value) -> TokenUsage {
     }
 }
 
-fn extract_tool_input(payload: &Value) -> AppResult<Value> {
+fn extract_tool_input(payload: &Value, tool_name: &str) -> AppResult<Value> {
     let blocks = payload
         .get("content")
         .and_then(Value::as_array)
@@ -186,7 +214,7 @@ fn extract_tool_input(payload: &Value) -> AppResult<Value> {
 
     for block in blocks {
         let is_tool_use = block.get("type").and_then(Value::as_str) == Some("tool_use");
-        let is_expected = block.get("name").and_then(Value::as_str) == Some(TOOL_NAME);
+        let is_expected = block.get("name").and_then(Value::as_str) == Some(tool_name);
         if is_tool_use && is_expected {
             return block
                 .get("input")
@@ -219,7 +247,7 @@ mod tests {
             ],
             "stop_reason": "tool_use"
         });
-        let input = extract_tool_input(&payload).expect("tool input");
+        let input = extract_tool_input(&payload, TOOL_NAME).expect("tool input");
         assert!(input.get("tasks").is_some());
     }
 
@@ -227,13 +255,13 @@ mod tests {
     fn rejects_response_without_tool_use() {
         let payload =
             json!({ "content": [{ "type": "text", "text": "Hallo" }], "stop_reason": "end_turn" });
-        assert!(extract_tool_input(&payload).is_err());
+        assert!(extract_tool_input(&payload, TOOL_NAME).is_err());
     }
 
     #[test]
     fn reports_truncated_responses() {
         let payload = json!({ "content": [], "stop_reason": "max_tokens" });
-        let err = extract_tool_input(&payload).expect_err("fehler");
+        let err = extract_tool_input(&payload, TOOL_NAME).expect_err("fehler");
         assert!(err.to_string().contains("abgeschnitten"));
     }
 
@@ -257,6 +285,6 @@ mod tests {
             "content": [{ "type": "tool_use", "name": "anderes_tool", "input": { "tasks": [] } }],
             "stop_reason": "tool_use"
         });
-        assert!(extract_tool_input(&payload).is_err());
+        assert!(extract_tool_input(&payload, TOOL_NAME).is_err());
     }
 }

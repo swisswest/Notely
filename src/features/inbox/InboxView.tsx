@@ -44,7 +44,7 @@ export function InboxView() {
 
   const openNote = (note: Note) => {
     requestView('notes');
-    requestOpenNote(note.id);
+    void requestOpenNote(note.id);
   };
 
   const analyzeAll = async () => {

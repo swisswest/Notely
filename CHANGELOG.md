@@ -9,7 +9,56 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 ### Geplant
 
 - Code-Signing gegen die SmartScreen-Warnung
-- Volltextsuche über SQLite FTS5
+- Weitere KI-Anbieter (OpenAI, Gemini) neben Claude
+
+## [0.11.0] - 2026-09-18
+
+### Neu
+
+- **Notizen fragen.** Über dem Suchfeld steht jetzt ein Knopf „Fragen". Dort
+  stellst du eine ganze Frage - „Wo habe ich mein Auto geparkt?" - und
+  bekommst einen Satz Antwort, zusammen mit den Notizen, in denen sie steht.
+  Ein Klick auf eine Quelle öffnet die Notiz.
+- Der Weg dahin läuft bewusst in zwei Schritten. Erst sucht SQLite auf dem
+  eigenen Rechner die passenden Notizen heraus, dann liest Claude nur diese -
+  höchstens acht, zusammen auf ein Zeichenbudget begrenzt. Der gesamte
+  Notizbestand geht also nie an Anthropic, und was nicht zur Frage passt,
+  verlässt den Rechner gar nicht erst. Findet die lokale Suche nichts,
+  unterbleibt der API-Aufruf komplett - die Auskunft ist dieselbe und kostet
+  nichts.
+- **Ohne Quelle keine Antwort.** Die vom Modell genannten Notiz-IDs werden
+  gegen die tatsächlich mitgeschickten Notizen geprüft. Bleibt danach keine
+  Quelle übrig, gilt die Antwort als „nichts gefunden" und wird verworfen.
+  Lieber „dazu steht nichts da" als eine erfundene Parkhausnummer.
+- **Volltextindex über alle Notizen** (SQLite FTS5). Er wird beim Update aus
+  dem Bestand aufgebaut, nicht erst ab der nächsten Notiz, und hängt per
+  Trigger an der Notiztabelle - angelegt, geändert, gelöscht, wiederhergestellt
+  stimmt er ohne Zutun. Umlaute und ihre Umschreibung ergeben denselben
+  Treffer: „Buero" findet „Büro".
+- **Rechtsklick auf eine Notiz in der Liste** öffnet ein Menü: Ordner
+  wechseln, Labels setzen, in den Papierkorb legen. Es arbeitet auf der
+  angeklickten Notiz, nicht auf der offenen - der Entwurf im Editor bleibt
+  stehen.
+
+### Geändert
+
+- Die Suche in der Befehlspalette gewichtet Treffer jetzt (bm25) statt nur
+  nach Änderungsdatum zu sortieren. Findet der Index nichts, greift weiterhin
+  die Teilzeichenkettensuche - sonst würde die Suche nach `park` das
+  `Parkhaus` nicht mehr finden.
+- Eine Frage wird nicht als Suchanfrage genommen. Füllwörter fallen raus, der
+  Rest wird ODER-verknüpft und als Wortanfang gesucht. „Wo habe ich mein Auto
+  geparkt" sucht also nach `auto` oder `geparkt` - mit UND-Verknüpfung wäre
+  das Ergebnis immer leer.
+- Der Hilfe-Tab hat einen Abschnitt „Suchen und Notizen fragen", die
+  IT-Seite und SECURITY.md nennen den neuen Datenfluss ausdrücklich.
+
+### Behoben
+
+- Eine Notiz aus der Befehlspalette oder aus einer Aufgabe zu öffnen tat
+  nichts, wenn sie gerade durch einen Ordner-, Label- oder Suchfilter aus der
+  Liste fiel. Die Filter werden jetzt vorher geräumt. Aufgefallen ist es erst
+  über die Quellenlinks in der Antwort - dort tritt der Fall ständig auf.
 
 ## [0.10.1] - 2026-09-18
 
@@ -334,7 +383,8 @@ Nach dem Update einmal `npm install` ausführen - Mermaid ist neu dazugekommen.
   konfigurierbare Tageszeiten, Windows-Benachrichtigungen mit Dublettenschutz,
   Tray-Icon, Autostart, Einstellungen, SQLite mit Migrationen.
 
-[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.10.1...HEAD
+[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/swisswest/Notely/releases/tag/v0.11.0
 [0.10.1]: https://github.com/swisswest/Notely/releases/tag/v0.10.1
 [0.10.0]: https://github.com/swisswest/Notely/releases/tag/v0.10.0
 [0.8.0]: https://github.com/swisswest/Notely/releases/tag/v0.8.0

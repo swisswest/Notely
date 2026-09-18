@@ -153,7 +153,7 @@ export function App() {
       hint: 'Notiz',
       run: () => {
         setView('notes');
-        requestOpenNote(note.id);
+        void requestOpenNote(note.id);
       },
     }));
     return [...taskEntries, ...noteEntries];

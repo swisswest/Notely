@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, InputHTMLAttributes, Ref, ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 
 type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
@@ -34,8 +34,16 @@ export function Field({ label, hint, children }: FieldProps) {
   );
 }
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  const { className, ...rest } = props;
+/**
+ * `ref` steht hier im Props-Typ, weil React 19 Refs an Funktionskomponenten
+ * wie jede andere Eigenschaft durchreicht - `forwardRef` braucht es dafuer
+ * nicht mehr. Ohne den Eintrag im Typ wuerde TypeScript ihn ablehnen.
+ */
+type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
+  ref?: Ref<HTMLInputElement>;
+};
+
+export function TextInput({ className, ...rest }: TextInputProps) {
   return <input className={`input${className ? ` ${className}` : ''}`} {...rest} />;
 }
 

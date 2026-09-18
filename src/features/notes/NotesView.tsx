@@ -19,7 +19,9 @@ import {
 } from '@/lib/store';
 import type { AnalysisResult, Label, Note } from '@/types';
 import { formatDateTime } from '@/utils/date';
+import { AskDialog } from './AskDialog';
 import { ExportDialog } from './ExportDialog';
+import { NoteContextMenu, type MenuTarget } from './NoteContextMenu';
 import { NoteSummary } from './NoteSummary';
 import { firstImage, insertImage, isSupportedImage } from './imageInsert';
 import { OrganizeDialog } from './OrganizeDialog';
@@ -68,6 +70,9 @@ export function NotesView() {
 
   const [mode, setMode] = useState<'write' | 'preview'>('write');
   const [exportOpen, setExportOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  /** Offenes Kontextmenue: welche Notiz, an welcher Stelle. */
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   /**
@@ -91,6 +96,16 @@ export function NotesView() {
   const selected = useMemo(
     () => notes.find((note) => note.id === selectedId) ?? null,
     [notes, selectedId],
+  );
+
+  /**
+   * Die Notiz zum offenen Kontextmenue, frisch aus der Liste. Verschwindet
+   * sie - geloescht oder aus dem Filter gefallen -, schliesst sich das Menue
+   * von selbst, statt auf etwas zu zeigen, das nicht mehr da ist.
+   */
+  const menuNote = useMemo(
+    () => (menu ? (notes.find((note) => note.id === menu.noteId) ?? null) : null),
+    [notes, menu],
   );
 
   const labelById = useMemo(() => {
@@ -279,20 +294,48 @@ export function NotesView() {
     }
   };
 
+  /**
+   * Ordner, Labels und Loeschen arbeiten auf einer beliebigen Notiz, nicht
+   * nur auf der offenen. Das Kontextmenue braucht genau das - sonst muesste
+   * man eine Notiz erst oeffnen, um sie einsortieren zu koennen, und haette
+   * dabei den Entwurf im Editor verloren.
+   */
+  const setFolderOf = async (noteId: string, folderId: string) => {
+    if (noteId === selectedId) setDraftFolder(folderId);
+    await run(() => api.notes.setFolder(noteId, folderId || null), { refresh: false });
+    await refreshNotes();
+  };
+
+  const toggleLabelOf = async (noteId: string, labelId: string) => {
+    const note = notes.find((entry) => entry.id === noteId);
+    if (!note) return;
+    const next = note.labels.includes(labelId)
+      ? note.labels.filter((id) => id !== labelId)
+      : [...note.labels, labelId];
+    await run(() => api.notes.setLabels(noteId, next), { refresh: false });
+    await refreshNotes();
+  };
+
+  const removeNoteById = async (noteId: string) => {
+    // Die offene Notiz geht ueber den bestehenden Weg - der raeumt den
+    // Editor mit auf, statt einen Entwurf zu einer geloeschten Notiz
+    // stehen zu lassen.
+    if (noteId === selectedId) {
+      await removeNote();
+      return;
+    }
+    await run(() => api.notes.remove(noteId), { success: 'Notiz geloescht' });
+  };
+
   const moveToFolder = async (folderId: string) => {
     setDraftFolder(folderId);
     if (!selectedId) return;
-    await run(() => api.notes.setFolder(selectedId, folderId || null), { refresh: false });
-    await refreshNotes();
+    await setFolderOf(selectedId, folderId);
   };
 
   const toggleLabelOnNote = async (labelId: string) => {
     if (!selected) return;
-    const next = selected.labels.includes(labelId)
-      ? selected.labels.filter((id) => id !== labelId)
-      : [...selected.labels, labelId];
-    await run(() => api.notes.setLabels(selected.id, next), { refresh: false });
-    await refreshNotes();
+    await toggleLabelOf(selected.id, labelId);
   };
 
   /**
@@ -408,11 +451,19 @@ export function NotesView() {
     <div className="notes">
       <div className="notes__list">
         <div className="notes__filters">
-          <TextInput
-            placeholder="Notizen durchsuchen"
-            value={search}
-            onChange={(event) => setNoteSearch(event.currentTarget.value)}
-          />
+          <div className="notes__search">
+            <TextInput
+              placeholder="Notizen durchsuchen"
+              value={search}
+              onChange={(event) => setNoteSearch(event.currentTarget.value)}
+            />
+            <Button
+              title="Eine Frage stellen - Claude liest die passenden Notizen und sagt, wo es steht"
+              onClick={() => setAskOpen(true)}
+            >
+              Fragen
+            </Button>
+          </div>
 
           <div className="notes__filter-row">
             <select
@@ -463,7 +514,12 @@ export function NotesView() {
                 type="button"
                 className="note-item"
                 aria-current={note.id === selectedId}
+                data-menu={note.id === menu?.noteId}
                 onClick={() => openNote(note)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setMenu({ noteId: note.id, x: event.clientX, y: event.clientY });
+                }}
               >
                 <NoteSummary content={note.content} />
                 <span className="note-item__meta">
@@ -728,6 +784,19 @@ export function NotesView() {
                 ]
           }
           onClose={() => setExportOpen(false)}
+        />
+      ) : null}
+      {askOpen ? <AskDialog initial={search} onClose={() => setAskOpen(false)} /> : null}
+      {menu && menuNote ? (
+        <NoteContextMenu
+          note={menuNote}
+          target={menu}
+          folders={folders}
+          labels={labels}
+          onSetFolder={(noteId, folderId) => void setFolderOf(noteId, folderId)}
+          onToggleLabel={(noteId, labelId) => void toggleLabelOf(noteId, labelId)}
+          onDelete={(noteId) => void removeNoteById(noteId)}
+          onClose={() => setMenu(null)}
         />
       ) : null}
       {organizeOpen ? <OrganizeDialog onClose={() => setOrganizeOpen(false)} /> : null}

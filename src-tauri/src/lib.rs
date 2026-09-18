@@ -199,6 +199,7 @@ pub fn run() {
             commands::trash::purge_task,
             commands::trash::empty_trash,
             commands::search::search,
+            commands::ask::ask_notes,
             commands::settings::usage_summary,
             commands::review::review_status,
             commands::review::complete_review,

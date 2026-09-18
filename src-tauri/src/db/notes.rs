@@ -8,6 +8,11 @@ use crate::error::{AppError, AppResult};
 const COLUMNS: &str = "id, content, created_at, updated_at, analyzed_at, last_analysis_status,
                        folder_id, deleted_at";
 
+/// Dieselben Spalten, qualifiziert - fuer Abfragen, die `notes` mit dem
+/// Volltextindex verbinden.
+const COLUMNS_N: &str = "n.id, n.content, n.created_at, n.updated_at, n.analyzed_at,
+                         n.last_analysis_status, n.folder_id, n.deleted_at";
+
 fn map(row: &Row<'_>) -> rusqlite::Result<Note> {
     Ok(Note {
         id: row.get(0)?,
@@ -211,12 +216,46 @@ pub fn needing_attention(conn: &Connection, limit: u32) -> AppResult<Vec<Note>> 
     Ok(result)
 }
 
+/// Sucht Notizen. Zuerst ueber den Volltextindex, weil der mehrere Woerter
+/// gewichten kann; bleibt er leer, folgt die Teilzeichenkettensuche. Beides
+/// wird gebraucht: der Index findet nur ganze Woerter ab Wortanfang, LIKE
+/// findet auch "park" in "Parkhaus", kann dafuer nicht gewichten.
 pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>> {
     let trimmed = term.trim();
     if trimmed.is_empty() {
         return Ok(Vec::new());
     }
 
+    let ranked = search_ranked(conn, trimmed, limit)?;
+    if !ranked.is_empty() {
+        return Ok(ranked);
+    }
+    search_like(conn, trimmed, limit)
+}
+
+/// Volltextsuche nach Relevanz. Liefert eine leere Liste, wenn aus der
+/// Eingabe kein sinnvoller Suchausdruck wird.
+pub fn search_ranked(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>> {
+    let Some(query) = fts_query(term) else {
+        return Ok(Vec::new());
+    };
+
+    let sql = format!(
+        "SELECT {COLUMNS_N} FROM notes_fts
+         JOIN notes n ON n.rowid = notes_fts.rowid
+         WHERE notes_fts MATCH ?1 AND n.deleted_at IS NULL
+         ORDER BY bm25(notes_fts) LIMIT ?2"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut result = Vec::new();
+    for row in stmt.query_map(params![query, limit.clamp(1, 100)], map)? {
+        result.push(row?);
+    }
+    attach_labels(conn, &mut result)?;
+    Ok(result)
+}
+
+fn search_like(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>> {
     let sql = format!(
         "SELECT {COLUMNS} FROM notes
          WHERE deleted_at IS NULL AND content LIKE '%' || ?1 || '%' ESCAPE '\\'
@@ -224,11 +263,23 @@ pub fn search(conn: &Connection, term: &str, limit: u32) -> AppResult<Vec<Note>>
     );
     let mut stmt = conn.prepare(&sql)?;
     let mut result = Vec::new();
-    for row in stmt.query_map(params![escape_like(trimmed), limit.clamp(1, 100)], map)? {
+    for row in stmt.query_map(params![escape_like(term), limit.clamp(1, 100)], map)? {
         result.push(row?);
     }
     attach_labels(conn, &mut result)?;
     Ok(result)
+}
+
+/// Baut den Volltextindex komplett neu auf. Wird heute nirgends gebraucht -
+/// aber sobald jemand VACUUM einbaut oder Notizen an den Triggern vorbei
+/// schreibt, ist das der Weg zurueck zu einem stimmigen Index.
+pub fn rebuild_index(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "DELETE FROM notes_fts;
+         INSERT INTO notes_fts (rowid, content, note_id)
+             SELECT rowid, content, id FROM notes;",
+    )?;
+    Ok(())
 }
 
 /// Alle aktiven Notizen ohne Filter und Limit - Grundlage für Sicherungen.
@@ -258,6 +309,100 @@ fn attach_labels(conn: &Connection, notes: &mut [Note]) -> AppResult<()> {
         note.labels = assignments.remove(&note.id).unwrap_or_default();
     }
     Ok(())
+}
+
+/// Woerter, die nichts eingrenzen. Bewusst kurz gehalten: jedes Wort, das
+/// hier steht, kann auch nicht mehr gesucht werden. Drin sind Fragewoerter,
+/// Hilfsverben, Artikel und Praepositionen - also genau das, was eine
+/// Frage wie "wo habe ich mein Auto geparkt" von "auto geparkt" trennt.
+const STOPWORDS: &[&str] = &[
+    // Fragewoerter
+    "wo", "was", "wann", "wer", "wie", "warum", "wieso", "weshalb", "wohin", "woher", "welche",
+    "welcher", "welches", "welchem", "welchen",
+    // Hilfs- und Modalverben
+    "ist", "sind", "war", "waren", "bin", "bist", "hab", "habe", "hast", "hat", "haben", "hatte",
+    "hatten", "wird", "werde", "wirst", "werden", "wurde", "wurden", "kann", "kannst", "konnen",
+    "konnte", "soll", "sollte", "muss", "mussen", "musste", "will", "wollte",
+    // Pronomen
+    "ich", "du", "er", "sie", "es", "wir", "ihr", "mich", "mir", "dich", "dir", "mein", "meine",
+    "meinen", "meinem", "meiner", "meines", "dein", "deine", "sein", "seine", "unser", "unsere",
+    // Artikel und Bindewoerter
+    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "eines",
+    "und", "oder", "aber", "denn", "dass", "damit", "weil", "wenn", "als",
+    // Praepositionen und Fuellwoerter
+    "nicht", "kein", "keine", "fur", "mit", "von", "vom", "zum", "zur", "beim", "ins", "aufs",
+    "in", "im", "an", "am", "auf", "aus", "bei", "nach", "uber", "unter", "vor", "durch", "um",
+    "zu", "da", "dann", "noch", "schon", "nur", "auch", "mal", "wieder", "etwa", "sehr",
+    // Englisch, knapp
+    "the", "a", "an", "is", "are", "was", "were", "where", "what", "when", "who", "how", "why",
+    "my", "i", "did", "do", "does", "of", "on", "at", "to", "it", "that", "this",
+];
+
+/// Wie viele Suchbegriffe hoechstens in eine Abfrage gehen. Mehr wuerde die
+/// Gewichtung nicht besser machen, nur die Abfrage langsamer.
+const MAX_TERMS: usize = 12;
+
+/// Uebersetzt eine Eingabe in einen FTS5-Ausdruck.
+///
+/// Eine Frage ist keine Suchanfrage. "Wo habe ich mein Auto geparkt" mit
+/// UND-Verknuepfung findet nichts, weil in keiner Notiz alle diese Woerter
+/// stehen. Darum: Fuellwoerter raus, der Rest ODER-verknuepft und als
+/// Praefix. Die Gewichtung (bm25) sortiert die Notiz nach oben, in der die
+/// meisten und seltensten Begriffe vorkommen.
+///
+/// Rueckgabe `None` heisst: aus der Eingabe bleibt nichts uebrig, was sich
+/// suchen liesse. Der Aufrufer faellt dann auf die einfache Suche zurueck.
+pub fn fts_query(input: &str) -> Option<String> {
+    let mut terms: Vec<String> = Vec::new();
+
+    for raw in input.split(|c: char| !c.is_alphanumeric()) {
+        if terms.len() >= MAX_TERMS {
+            break;
+        }
+        let word = raw.to_lowercase();
+        if word.chars().count() < 2 {
+            continue;
+        }
+        // Der Vergleich laeuft gegen die umlautfreie Form, damit "für" und
+        // "fuer" beide als Fuellwort erkannt werden - so wie der Tokenizer
+        // der Datenbank es auch tut.
+        if STOPWORDS.contains(&fold(&word).as_str()) {
+            continue;
+        }
+        if terms.iter().any(|existing| existing == &word) {
+            continue;
+        }
+        terms.push(word);
+    }
+
+    if terms.is_empty() {
+        return None;
+    }
+
+    // Die Begriffe bestehen nur aus Buchstaben und Ziffern - in den
+    // Anfuehrungszeichen kann nichts stehen, was den Ausdruck aufbricht.
+    Some(
+        terms
+            .iter()
+            .map(|term| format!("\"{term}\"*"))
+            .collect::<Vec<_>>()
+            .join(" OR "),
+    )
+}
+
+/// Umlaute und Akzente auf ihre Grundform. Entspricht dem, was der
+/// Tokenizer der Datenbank mit `remove_diacritics 2` macht.
+fn fold(word: &str) -> String {
+    word.chars()
+        .map(|c| match c {
+            'ä' | 'à' | 'á' | 'â' => 'a',
+            'ö' | 'ò' | 'ó' | 'ô' => 'o',
+            'ü' | 'ù' | 'ú' | 'û' => 'u',
+            'ë' | 'è' | 'é' | 'ê' => 'e',
+            'ï' | 'ì' | 'í' | 'î' => 'i',
+            other => other,
+        })
+        .collect()
 }
 
 fn escape_like(term: &str) -> String {
@@ -440,5 +585,173 @@ mod tests {
             Ok(())
         })
         .expect("operations");
+    }
+
+    /// Der eigentliche Punkt der Frage-Funktion: eine ganze Frage muss die
+    /// Notiz finden, in der nur zwei der Woerter vorkommen.
+    #[test]
+    fn a_whole_question_finds_the_note() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Auto steht im Parkhaus P3, Ebene 2", None)?;
+            create(conn, "Einkaufsliste: Brot, Milch, Kaffee", None)?;
+
+            let hits = search(conn, "wo habe ich mein Auto geparkt?", 10)?;
+            assert_eq!(hits.len(), 1, "nur die Autonotiz passt");
+            assert!(hits[0].content.starts_with("Auto steht"));
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    /// Mehr Treffer sind schlechter als richtig sortierte Treffer.
+    #[test]
+    fn the_better_match_comes_first() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Kaffee kaufen", None)?;
+            create(conn, "Kaffeemaschine entkalken und Kaffee nachfuellen", None)?;
+
+            let hits = search(conn, "Kaffeemaschine entkalken", 10)?;
+            assert!(hits.len() >= 1);
+            assert!(
+                hits[0].content.starts_with("Kaffeemaschine"),
+                "erwartet die Notiz mit beiden Begriffen, war: {}",
+                hits[0].content
+            );
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    /// Wortteile findet der Index nicht - dafuer gibt es den Rueckfall auf
+    /// die einfache Suche. Ohne ihn waere die Suche nach "park" leer,
+    /// obwohl "Parkhaus" dasteht.
+    #[test]
+    fn a_word_fragment_still_finds_the_note() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Auto steht im Parkhaus", None)?;
+            assert_eq!(search_ranked(conn, "arkhaus", 10)?.len(), 0, "Index kennt keine Wortmitte");
+            assert_eq!(search(conn, "arkhaus", 10)?.len(), 1, "der Rueckfall findet sie");
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn the_trash_stays_out_of_the_full_text_search() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let note = create(conn, "Geheimnis im Parkhaus", None)?;
+            assert_eq!(search(conn, "Parkhaus", 10)?.len(), 1);
+
+            soft_delete(conn, &note.id)?;
+            assert_eq!(search(conn, "Parkhaus", 10)?.len(), 0, "Papierkorb bleibt draussen");
+
+            restore(conn, &note.id)?;
+            assert_eq!(search(conn, "Parkhaus", 10)?.len(), 1, "und kommt zurueck");
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn an_edited_note_is_found_under_its_new_text() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            let note = create(conn, "Velo im Keller", None)?;
+            update_content(conn, &note.id, "Velo beim Bahnhof")?;
+
+            assert_eq!(search(conn, "Keller", 10)?.len(), 0, "alter Text ist weg");
+            assert_eq!(search(conn, "Bahnhof", 10)?.len(), 1, "neuer Text zaehlt");
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn rebuilding_the_index_restores_it() {
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Auto im Parkhaus", None)?;
+            conn.execute_batch("DELETE FROM notes_fts")?;
+            assert_eq!(search_ranked(conn, "Parkhaus", 10)?.len(), 0);
+
+            rebuild_index(conn)?;
+            assert_eq!(search_ranked(conn, "Parkhaus", 10)?.len(), 1);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn a_question_becomes_an_or_query_without_filler() {
+        let query = fts_query("Wo habe ich mein Auto geparkt?").expect("Ausdruck");
+        assert_eq!(query, "\"auto\"* OR \"geparkt\"*");
+    }
+
+    #[test]
+    fn filler_only_input_yields_no_query() {
+        assert!(fts_query("wo ist das denn").is_none());
+        assert!(fts_query("???").is_none());
+        assert!(fts_query("").is_none());
+    }
+
+    /// Anfuehrungszeichen und Operatoren duerfen den Ausdruck nicht
+    /// aufbrechen - sonst waere jede Suche ein Syntaxfehler.
+    ///
+    /// Das Mittel dafuer ist nicht die Fuellwortliste, sondern das
+    /// Anfuehrungszeichen um jeden Begriff: `AND`, `OR` und `NEAR` kommen als
+    /// gewoehnliche Suchbegriffe heraus, nicht als Syntax. Genau das wird hier
+    /// festgehalten - wer die Fuellwortliste spaeter aendert, soll diesen Test
+    /// nicht versehentlich entwerten.
+    #[test]
+    fn operators_become_ordinary_search_terms() {
+        let query = fts_query("\"Miete\" AND (Januar OR NEAR)").expect("Ausdruck");
+        assert_eq!(
+            query,
+            "\"miete\"* OR \"and\"* OR \"januar\"* OR \"or\"* OR \"near\"*",
+            "jeder Begriff steht in Anfuehrungszeichen, auch die Operatoren"
+        );
+
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Miete Januar ueberwiesen", None)?;
+            // Waere auch nur eines der Schluesselwoerter als Syntax
+            // durchgegangen, gaebe es hier einen Fehler statt eines Treffers.
+            assert_eq!(search(conn, "\"Miete\" AND (Januar OR NEAR)", 10)?.len(), 1);
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    /// Ein Stern im Suchtext ist in FTS5 ein Praefix-Operator. Kommt er
+    /// ungefiltert durch, steht am Ende `""*` da - und das ist ein
+    /// Syntaxfehler, kein leeres Ergebnis.
+    #[test]
+    fn stray_wildcards_and_quotes_are_stripped() {
+        assert_eq!(fts_query("Miete*").expect("Ausdruck"), "\"miete\"*");
+        assert_eq!(fts_query("^Miete").expect("Ausdruck"), "\"miete\"*");
+        assert!(fts_query("*").is_none(), "nichts Suchbares uebrig");
+
+        let db = Db::open_in_memory().expect("db");
+        db.with(|conn| {
+            create(conn, "Miete Januar ueberwiesen", None)?;
+            assert_eq!(search(conn, "Miete*", 10)?.len(), 1);
+            assert_eq!(search(conn, "\"\"\"", 10)?.len(), 0, "kein Absturz, nur kein Treffer");
+            Ok(())
+        })
+        .expect("operations");
+    }
+
+    #[test]
+    fn duplicates_and_overlong_input_are_capped() {
+        let query = fts_query("Auto auto AUTO").expect("Ausdruck");
+        assert_eq!(query, "\"auto\"*");
+
+        let many = (0..40).map(|i| format!("wort{i}")).collect::<Vec<_>>().join(" ");
+        let query = fts_query(&many).expect("Ausdruck");
+        assert_eq!(query.matches(" OR ").count(), MAX_TERMS - 1);
     }
 }
