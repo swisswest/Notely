@@ -24,6 +24,7 @@ import {
   useStore,
 } from '@/lib/store';
 import { InboxView } from '@/features/inbox/InboxView';
+import { summarize } from '@/features/notes/NoteSummary';
 import { NotesView } from '@/features/notes/NotesView';
 import { SuggestionDialog } from '@/features/notes/SuggestionDialog';
 import { OnboardingDialog } from '@/features/onboarding/OnboardingDialog';
@@ -148,7 +149,7 @@ export function App() {
     }));
     const noteEntries: Command[] = results.notes.map((note) => ({
       id: `note:${note.id}`,
-      label: note.content.replace(/\s+/g, ' ').slice(0, SEARCH_PREVIEW_CHARS),
+      label: summarize(note.content).title.slice(0, SEARCH_PREVIEW_CHARS),
       hint: 'Notiz',
       run: () => {
         setView('notes');

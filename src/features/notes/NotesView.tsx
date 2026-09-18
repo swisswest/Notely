@@ -20,6 +20,7 @@ import {
 import type { AnalysisResult, Label, Note } from '@/types';
 import { formatDateTime } from '@/utils/date';
 import { ExportDialog } from './ExportDialog';
+import { NoteSummary } from './NoteSummary';
 import { firstImage, insertImage, isSupportedImage } from './imageInsert';
 import { OrganizeDialog } from './OrganizeDialog';
 import { SlashMenu } from './SlashMenu';
@@ -464,7 +465,7 @@ export function NotesView() {
                 aria-current={note.id === selectedId}
                 onClick={() => openNote(note)}
               >
-                <span className="note-item__preview">{note.content}</span>
+                <NoteSummary content={note.content} />
                 <span className="note-item__meta">
                   {folderName(note.folderId) ? `${folderName(note.folderId)} · ` : ''}
                   {formatDateTime(note.updatedAt)}
@@ -536,74 +537,80 @@ export function NotesView() {
           }}
         />
 
+        {/*
+          Das Textfeld wird in der Vorschau nur ausgeblendet, nicht entfernt.
+          Nimmt React es aus dem Baum, wirft die Webview den Rückgängig-Verlauf
+          des Feldes weg - nach einem Wechsel Schreiben → Vorschau → Schreiben
+          war Strg+Z tot. Der Verlauf hängt am DOM-Element, nicht am Text, also
+          muss genau dieses Element stehen bleiben.
+        */}
+        <textarea
+          ref={editorRef}
+          hidden={mode === 'preview'}
+          value={draft}
+          placeholder="Frei schreiben. Beispiel: Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren."
+          onChange={(event) => {
+            const text = event.currentTarget.value;
+            setDraft(text);
+            setDirty(true);
+            setSaveState('dirty');
+            scheduleAutosave(text);
+            // Nach dem Setzen des Werts, damit der Cursor schon steht.
+            requestAnimationFrame(updateSlash);
+          }}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+              event.preventDefault();
+              void saveAndMaybeAnalyze();
+              return;
+            }
+            // Pfeiltasten, Enter und Esc gehören dem Menü, solange es offen
+            // ist. Es hört selbst mit, hier wird nur nichts dazwischengefunkt.
+            if (slash && ['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
+              return;
+            }
+            requestAnimationFrame(updateSlash);
+          }}
+          onClick={updateSlash}
+          onBlur={() => setSlash(null)}
+          onPaste={(event) => {
+            const file = firstImage(event.clipboardData);
+            if (!file) return;
+            // Sonst landet zusätzlich der Dateiname als Text im Feld.
+            event.preventDefault();
+            void addImage(file);
+          }}
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            if (!dropActive) setDropActive(true);
+          }}
+          onDragLeave={() => setDropActive(false)}
+          onDrop={(event) => {
+            const file = firstImage(event.dataTransfer);
+            setDropActive(false);
+            if (!file) return;
+            event.preventDefault();
+            void addImage(file);
+          }}
+          data-drop={dropActive}
+        />
+
         {mode === 'preview' ? (
           <div className="notes__preview">
             <Markdown source={draft} onLink={copyLink} />
           </div>
-        ) : (
-          <>
-            <textarea
-              ref={editorRef}
-              value={draft}
-              placeholder="Frei schreiben. Beispiel: Morgen Mittag Datenbankmigration vorbereiten und am Abend Nico informieren."
-              onChange={(event) => {
-                const text = event.currentTarget.value;
-                setDraft(text);
-                setDirty(true);
-                setSaveState('dirty');
-                scheduleAutosave(text);
-                // Nach dem Setzen des Werts, damit der Cursor schon steht.
-                requestAnimationFrame(updateSlash);
-              }}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-                  event.preventDefault();
-                  void saveAndMaybeAnalyze();
-                  return;
-                }
-                // Pfeiltasten, Enter und Esc gehören dem Menü, solange es offen
-                // ist. Es hört selbst mit, hier wird nur nichts dazwischengefunkt.
-                if (slash && ['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
-                  return;
-                }
-                requestAnimationFrame(updateSlash);
-              }}
-              onClick={updateSlash}
-              onBlur={() => setSlash(null)}
-              onPaste={(event) => {
-                const file = firstImage(event.clipboardData);
-                if (!file) return;
-                // Sonst landet zusätzlich der Dateiname als Text im Feld.
-                event.preventDefault();
-                void addImage(file);
-              }}
-              onDragOver={(event) => {
-                if (!event.dataTransfer.types.includes('Files')) return;
-                event.preventDefault();
-                if (!dropActive) setDropActive(true);
-              }}
-              onDragLeave={() => setDropActive(false)}
-              onDrop={(event) => {
-                const file = firstImage(event.dataTransfer);
-                setDropActive(false);
-                if (!file) return;
-                event.preventDefault();
-                void addImage(file);
-              }}
-              data-drop={dropActive}
-            />
+        ) : null}
 
-            {slash ? (
-              <SlashMenu
-                commands={filterCommands(slash.query)}
-                top={slash.top}
-                left={slash.left}
-                onPick={insertCommand}
-                onClose={() => setSlash(null)}
-              />
-            ) : null}
-          </>
-        )}
+        {mode === 'write' && slash ? (
+          <SlashMenu
+            commands={filterCommands(slash.query)}
+            top={slash.top}
+            left={slash.left}
+            onPick={insertCommand}
+            onClose={() => setSlash(null)}
+          />
+        ) : null}
 
         <div className="notes__assign">
           <select
@@ -740,3 +747,4 @@ export function NotesView() {
     </div>
   );
 }
+

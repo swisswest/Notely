@@ -4,6 +4,7 @@ import { Button, EmptyState } from '@/components/ui';
 import { api } from '@/lib/ipc';
 import { refreshTasks, refreshNotes, reportError, showToast, useStore } from '@/lib/store';
 import type { TrashContents } from '@/types';
+import { summarize } from '@/features/notes/NoteSummary';
 import { formatDateTime } from '@/utils/date';
 
 const EMPTY: TrashContents = { notes: [], tasks: [], retentionDays: 30 };
@@ -106,7 +107,7 @@ export function TrashView() {
             <div className="task-row" key={note.id}>
               <span />
               <span />
-              <span className="task-row__title">{note.content}</span>
+              <span className="task-row__title">{summarize(note.content).title}</span>
               <span className="task-row__meta">
                 <span>{note.deletedAt ? formatDateTime(note.deletedAt) : ''}</span>
                 <Button

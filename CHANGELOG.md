@@ -11,6 +11,30 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 - Code-Signing gegen die SmartScreen-Warnung
 - Volltextsuche über SQLite FTS5
 
+## [0.10.1] - 2026-09-18
+
+Ein Fehlerbehebungs-Release. Keine neuen Funktionen, keine Datenbankänderung.
+
+### Behoben
+
+- **Strg+Z ging nach einem Blick in die Vorschau nicht mehr.** Ursache: beim
+  Wechsel auf „Vorschau“ wurde das Schreibfeld aus der Oberfläche entfernt
+  und beim Zurückwechseln neu aufgebaut. Der Rückgängig-Verlauf hängt am
+  Feld selbst, nicht am Text - mit dem Feld war er weg. Das Feld bleibt jetzt
+  stehen und wird nur ausgeblendet.
+
+### Geändert
+
+- **Die Notizliste zeigt die erste Zeile als Titel**, darunter den Anfang des
+  Inhalts in Grau. Vorher standen dort zwei Zeilen Rohtext, was bei einer
+  Notiz, die mit einer Überschrift beginnt, hiess: `# Einkauf` statt
+  `Einkauf`. Auszeichnung, Bilder und Tabellen werden dabei zu lesbarem Text
+  aufgelöst; ausgewertet wird nur der Anfang der Notiz, damit die Liste auch
+  bei langen Texten flüssig bleibt.
+- Dieselbe Titelzeile steht jetzt auch in der Inbox, in der Befehlspalette
+  und im Papierkorb - vorher zeigten die drei Stellen drei verschiedene
+  Ausschnitte desselben Rohtexts.
+
 ## [0.10.0] - 2026-09-17
 
 ### Neu
@@ -310,7 +334,8 @@ Nach dem Update einmal `npm install` ausführen - Mermaid ist neu dazugekommen.
   konfigurierbare Tageszeiten, Windows-Benachrichtigungen mit Dublettenschutz,
   Tray-Icon, Autostart, Einstellungen, SQLite mit Migrationen.
 
-[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.10.0...HEAD
+[Unveröffentlicht]: https://github.com/swisswest/Notely/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/swisswest/Notely/releases/tag/v0.10.1
 [0.10.0]: https://github.com/swisswest/Notely/releases/tag/v0.10.0
 [0.8.0]: https://github.com/swisswest/Notely/releases/tag/v0.8.0
 [0.7.1]: https://github.com/swisswest/Notely/releases/tag/v0.7.1

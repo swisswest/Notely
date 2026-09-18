@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   attachmentId,
+  digest,
   headline,
   imageRef,
   inlineToText,
@@ -231,5 +232,48 @@ describe('Bilder', () => {
     expect(attachmentId(imageRef('a1b2c3'))).toBe('a1b2c3');
     expect(attachmentId('notely:bild/../../etc')).toBeNull();
     expect(attachmentId('https://example.com')).toBeNull();
+  });
+});
+
+describe('digest', () => {
+  it('trennt Titel und Rest', () => {
+    const d = digest('# Einkauf\n\nMilch und Brot\n\n- Eier');
+    expect(d.title).toBe('Einkauf');
+    expect(d.rest).toContain('Milch und Brot');
+    expect(d.rest).toContain('Eier');
+    expect(d.rest).not.toContain('Einkauf');
+  });
+
+  it('nimmt den ersten Absatz als Titel, wenn keine Überschrift da ist', () => {
+    const d = digest('Auto steht im Parkhaus\n\nEbene 3, Platz 47');
+    expect(d.title).toBe('Auto steht im Parkhaus');
+    expect(d.rest).toBe('Ebene 3, Platz 47');
+  });
+
+  it('überspringt einen Codeblock am Anfang und behält ihn im Rest', () => {
+    const d = digest('```\nx = 1\n```\n\nErklärung dazu');
+    expect(d.title).toBe('Erklärung dazu');
+    expect(d.rest).toContain('x = 1');
+  });
+
+  it('gibt bei einer Notiz aus nur einer Zeile keinen Rest zurück', () => {
+    const d = digest('Nur ein Satz');
+    expect(d.title).toBe('Nur ein Satz');
+    expect(d.rest).toBe('');
+  });
+
+  it('greift bei leerer Notiz auf den Ersatzwert zurück', () => {
+    expect(digest('   ').title).toBe('Ohne Titel');
+  });
+
+  it('kürzt lange Inhalte und hängt Auslassungspunkte an', () => {
+    const d = digest(`Titel\n\n${'Wort '.repeat(80)}`, 'Ohne Titel', 40);
+    expect(d.rest.length).toBeLessThanOrEqual(41);
+    expect(d.rest.endsWith('…')).toBe(true);
+  });
+
+  it('nennt Bilder im Rest, statt sie zu verschlucken', () => {
+    const d = digest('Fehler\n\n![Screenshot](notely:bild/abc)');
+    expect(d.rest).toContain('[Bild: Screenshot]');
   });
 });

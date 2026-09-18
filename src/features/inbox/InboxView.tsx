@@ -12,13 +12,13 @@ import {
   showToast,
   useStore,
 } from '@/lib/store';
+import { NoteSummary } from '@/features/notes/NoteSummary';
 import { useTaskActions } from '@/features/tasks/useTaskActions';
 import type { Note } from '@/types';
 import { compareTasks, formatDateTime } from '@/utils/date';
 
 /** Muss zu MAX_BATCH im Backend passen. */
 const MAX_BATCH = 25;
-const PREVIEW_CHARS = 110;
 
 /**
  * Die Inbox sammelt, was noch Aufmerksamkeit braucht: Aufgaben ohne Termin
@@ -109,9 +109,7 @@ export function InboxView() {
               className="note-item note-item--row"
               onClick={() => openNote(note)}
             >
-              <span className="note-item__preview">
-                {note.content.replace(/\s+/g, ' ').slice(0, PREVIEW_CHARS)}
-              </span>
+              <NoteSummary content={note.content} />
               <span className="note-item__meta">
                 {formatDateTime(note.updatedAt)}
                 {note.lastAnalysisStatus === 'failed' ? (

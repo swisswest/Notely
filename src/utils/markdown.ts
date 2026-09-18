@@ -327,34 +327,32 @@ function merge(nodes: Inline[]): Inline[] {
  * verloren, der Inhalt nicht.
  */
 export function toPlainText(source: string): string {
-  return parseMarkdown(source)
-    .map((block) => {
-      switch (block.kind) {
-        case 'heading':
-          return inlineToText(block.content);
-        case 'paragraph':
-          return inlineToText(block.content);
-        case 'quote':
-          return inlineToText(block.content);
-        case 'code':
-          return block.value;
-        case 'rule':
-          return '---';
-        case 'list':
-          return block.items
-            .map((item, position) => {
-              const marker = block.ordered ? `${position + 1}.` : '-';
-              const box = item.checked === null ? '' : item.checked ? '[x] ' : '[ ] ';
-              return `${marker} ${box}${inlineToText(item.content)}`;
-            })
-            .join('\n');
-        case 'table':
-          return [block.head, ...block.rows]
-            .map((row) => row.map(inlineToText).join('\t'))
-            .join('\n');
-      }
-    })
-    .join('\n\n');
+  return parseMarkdown(source).map(blockToText).join('\n\n');
+}
+
+function blockToText(block: Block): string {
+  switch (block.kind) {
+    case 'heading':
+    case 'paragraph':
+    case 'quote':
+      return inlineToText(block.content);
+    case 'code':
+      return block.value;
+    case 'rule':
+      return '---';
+    case 'list':
+      return block.items
+        .map((item, position) => {
+          const marker = block.ordered ? `${position + 1}.` : '-';
+          const box = item.checked === null ? '' : item.checked ? '[x] ' : '[ ] ';
+          return `${marker} ${box}${inlineToText(item.content)}`;
+        })
+        .join('\n');
+    case 'table':
+      return [block.head, ...block.rows]
+        .map((row) => row.map(inlineToText).join('\t'))
+        .join('\n');
+  }
 }
 
 export function inlineToText(nodes: Inline[]): string {
@@ -376,13 +374,49 @@ export function inlineToText(nodes: Inline[]): string {
     .join('');
 }
 
+/**
+ * Titel und Rest einer Notiz in einem Durchgang.
+ *
+ * Getrennt zu rechnen wäre fehleranfällig: `headline` überspringt einen
+ * Codeblock oder eine Trennlinie am Anfang, und der Rest müsste dann raten,
+ * wo der Titel aufgehört hat. Hier weiss es beides voneinander.
+ */
+export interface Digest {
+  title: string;
+  /** Der Inhalt ohne den Titel, als Fliesstext und gekürzt. */
+  rest: string;
+}
+
+export function digest(source: string, fallback = 'Ohne Titel', max = 160): Digest {
+  const blocks = parseMarkdown(source);
+  const head = firstTextBlock(blocks);
+
+  const rest = blocks
+    .filter((_, index) => index !== head.index)
+    .map(blockToText)
+    .filter((part) => part.trim() !== '')
+    .join(' · ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return {
+    title: head.text || fallback,
+    rest: rest.length > max ? `${rest.slice(0, max).trimEnd()}…` : rest,
+  };
+}
+
+/** Erster Block mit lesbarem Text, samt Position - die Quelle des Titels. */
+function firstTextBlock(blocks: Block[]): { text: string; index: number } {
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    if (!block || (block.kind !== 'heading' && block.kind !== 'paragraph')) continue;
+    const text = inlineToText(block.content).trim();
+    if (text) return { text, index };
+  }
+  return { text: '', index: -1 };
+}
+
 /** Erste sinnvolle Zeile einer Notiz - als Titel für Export und Dateiname. */
 export function headline(source: string, fallback = 'Notiz'): string {
-  for (const block of parseMarkdown(source)) {
-    if (block.kind === 'heading' || block.kind === 'paragraph') {
-      const text = inlineToText(block.content).trim();
-      if (text) return text;
-    }
-  }
-  return fallback;
+  return firstTextBlock(parseMarkdown(source)).text || fallback;
 }
