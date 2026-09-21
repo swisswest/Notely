@@ -127,12 +127,12 @@ jobs:
           fi
 
       # Legt einen Pull Request gegen microsoft/winget-pkgs an. Voraussetzung:
-      # Westcon.Notely ist dort bereits einmal von Hand eingereicht worden.
+      # swisswest75.Notely ist dort bereits einmal von Hand eingereicht worden.
       - name: Manifest einreichen
         if: steps.gate.outputs.ready == 'true'
         uses: vedantmgoyal9/winget-releaser@main
         with:
-          identifier: Westcon.Notely
+          identifier: swisswest75.Notely
           installers-regex: '-setup\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}
 

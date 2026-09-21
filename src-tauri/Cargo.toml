@@ -2,7 +2,7 @@
 name = "notely"
 version = "0.11.0"
 description = "Notizen, Aufgaben und Claude-Analyse für Windows"
-authors = ["Westcon"]
+authors = ["swisswest75"]
 edition = "2021"
 rust-version = "1.77"
 

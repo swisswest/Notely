@@ -55,8 +55,8 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "Westcon",
-    "copyright": "",
+    "publisher": "swisswest75",
+    "copyright": "© 2026 swisswest75",
     "category": "Productivity",
     "shortDescription": "Notizen, Aufgaben und Claude-Analyse",
     "longDescription": "Notely verbindet freie Notizen mit automatisch abgeleiteten Aufgaben und nativen Windows-Erinnerungen.",

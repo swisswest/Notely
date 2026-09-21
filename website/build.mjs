@@ -32,6 +32,11 @@ const [OWNER, NAME] = REPO.split('/');
 const SITE_URL = (process.env.SITE_URL || `https://${OWNER.toLowerCase()}.github.io/${NAME}/`).replace(/\/?$/, '/');
 const BASE_PATH = new URL(SITE_URL).pathname; // z. B. "/Notely/" oder "/" bei eigener Domain
 const GH = `https://github.com/${REPO}`;
+/** Wer Notely herausgibt. Steht im Footer, auf der IT-Seite und im winget-Namen. */
+const PUBLISHER = 'swisswest75';
+/** Paketname bei winget, nach dessen Schema Herausgeber.Produkt. */
+const WINGET_ID = `${PUBLISHER}.Notely`;
+const WINGET_CMD = `winget install ${WINGET_ID}`;
 const STRICT = process.env.STRICT === '1';
 const INSTALLER = /-setup\.exe$/i;
 
@@ -228,7 +233,7 @@ ${body}
   <div class="container footer__inner">
     <div>
       <a class="brand" href="${base}"><img src="${base}assets/icon.png" alt="" width="22" height="22">Notely</a>
-      <small>Open Source unter MIT-Lizenz · Westcon</small>
+      <small>Open Source unter MIT-Lizenz · ${PUBLISHER}</small>
     </div>
     <nav class="footer__links" aria-label="Fusszeile">
       <a href="${base}versionen/">Alle Versionen</a>
@@ -295,7 +300,7 @@ function renderHome({ latest, roadmap }) {
     ['Warum warnt Windows beim Installieren?', 'Der Installer ist derzeit nicht code-signiert. SmartScreen zeigt deshalb „Unbekannter Herausgeber": <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Eleganter geht es über Rechtsklick auf die Datei → <em>Eigenschaften</em> → <em>Zulassen</em> – dann erscheint die Abfrage gar nicht erst. Die SHA-256-Prüfsumme jeder Datei steht auf der <a href="versionen/">Versionsseite</a>.'],
     ['Auf meinem Firmenrechner lässt sich die Warnung nicht wegklicken.', 'Dann steht SmartScreen dort per Richtlinie auf „Warnen und Umgehen verhindern" – den Knopf <em>Trotzdem ausführen</em> gibt es dann nicht. Probiere zuerst Rechtsklick → <em>Eigenschaften</em> → <em>Zulassen</em>. Hilft das nicht, entscheidet die IT. Auf der Seite <a href="it/">Firmenrechner &amp; IT</a> steht alles, was sie für die Freigabe braucht – Netzwerkziele, Ablageorte, Prüfsummen.'],
     ['Brauche ich Adminrechte?', 'Nein. Notely installiert sich ins Benutzerprofil.'],
-    ['Wie aktualisiere ich?', 'Neuen Installer herunterladen und ausführen – er ersetzt die installierte Version, deine Daten bleiben erhalten. Automatische Updates sind in Planung.'],
+    ['Wie aktualisiere ich?', 'Gar nicht, das macht Notely selbst: beim Start wird nach einer neuen Version gesucht, und jedes Update wird vor der Installation gegen die Signatur geprüft. Abschalten lässt sich das in den Einstellungen. Wer lieber von Hand aktualisiert, führt einfach den neuen Installer aus – deine Daten bleiben erhalten.'],
     ['Wo liegen meine Daten?', 'Ausschliesslich lokal unter <code>%APPDATA%\\Notely</code>, die Logdatei unter <code>%LOCALAPPDATA%\\Notely\\logs</code>. Kein Konto, keine Cloud, keine Telemetrie.'],
   ];
 
@@ -310,6 +315,10 @@ function renderHome({ latest, roadmap }) {
       <a class="btn btn--secondary btn--lg" href="versionen/">Alle Versionen</a>
     </div>
     <p class="hero__meta">${meta}</p>
+    <div class="hero__winget">
+      <span>oder im Terminal</span>
+      <button class="cmd" type="button" data-copy="${esc(WINGET_CMD)}" data-copied="Kopiert" title="Befehl kopieren"><code>${esc(WINGET_CMD)}</code>${icon.copy(13)}<span>Kopieren</span></button>
+    </div>
 
     <figure class="shot" aria-label="Notely: links eine Notiz, rechts die daraus abgeleiteten Aufgaben">
       <div class="window">
@@ -468,7 +477,7 @@ function renderHome({ latest, roadmap }) {
       <li class="step"><h3>Ausführen</h3><p>Installation ins Benutzerprofil, ohne Adminrechte. Installer auf Deutsch und Englisch.</p></li>
       <li class="step"><h3>API-Key hinterlegen</h3><p>Optional: eigenen Key von <a href="https://console.anthropic.com" rel="noopener" style="color:var(--accent)">console.anthropic.com</a> in den Einstellungen eintragen.</p></li>
     </ol>
-    <div class="note">${icon.warn(16)}<p><strong>Hinweis zu SmartScreen:</strong> Der Installer ist noch nicht signiert. Windows meldet deshalb „Unbekannter Herausgeber" – <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Sauberer: Rechtsklick auf die Datei → <em>Eigenschaften</em> → <em>Zulassen</em>, dann erscheint die Abfrage nicht. Lässt sich die Warnung auf einem Firmenrechner gar nicht umgehen, hilft die Seite <a href="it/" style="color:var(--accent)">Firmenrechner &amp; IT</a> weiter.</p></div>
+    <div class="note">${icon.warn(16)}<p><strong>Hinweis zu SmartScreen:</strong> Der Installer ist noch nicht signiert. Windows meldet deshalb „Unbekannter Herausgeber" – <em>Weitere Informationen</em> → <em>Trotzdem ausführen</em>. Sauberer: Rechtsklick auf die Datei → <em>Eigenschaften</em> → <em>Zulassen</em>, dann erscheint die Abfrage nicht. Ganz ohne Abfrage geht es über winget: <code>${WINGET_CMD}</code> – so geladene Dateien tragen keine Internet-Markierung. Lässt sich die Warnung auf einem Firmenrechner gar nicht umgehen, hilft die Seite <a href="it/" style="color:var(--accent)">Firmenrechner &amp; IT</a> weiter.</p></div>
   </div>
 </section>
 
@@ -645,7 +654,7 @@ function renderIt({ latest }) {
       <h2>Zuerst das hier probieren.</h2>
       <p>Windows markiert jede heruntergeladene Datei als „aus dem Internet". Genau diese Markierung löst die Warnung aus. Nimmst du sie weg, erscheint die Warnung nicht mehr – das ist keine Umgehung einer Richtlinie, sondern eine Funktion, die Windows im Eigenschaften-Dialog anbietet.</p>
     </div>
-    <div class="note">${icon.bolt(16)}<p><strong>Am einfachsten über winget:</strong> <code>winget install Westcon.Notely</code> – der Windows-Paketmanager lädt die Datei selbst herunter, sie trägt deshalb keine Internet-Markierung und SmartScreen fragt gar nicht erst. Klappt das nicht, hilft der Weg darunter.</p></div>
+    <div class="note">${icon.bolt(16)}<p><strong>Am einfachsten über winget:</strong> <code>${WINGET_CMD}</code> – der Windows-Paketmanager lädt die Datei selbst herunter, sie trägt deshalb keine Internet-Markierung und SmartScreen fragt gar nicht erst. Klappt das nicht, hilft der Weg darunter.</p></div>
     <ol class="steps">
       <li class="step"><h3>Rechtsklick auf die Datei</h3><p>Im Download-Ordner auf <em>${esc(fileName)}</em> rechtsklicken und <em>Eigenschaften</em> wählen.</p></li>
       <li class="step"><h3>Zulassen ankreuzen</h3><p>Ganz unten im Reiter <em>Allgemein</em> steht <em>Sicherheit: Die Datei stammt von einem anderen Computer …</em>. Dort <em>Zulassen</em> ankreuzen.</p></li>
@@ -674,7 +683,7 @@ function renderIt({ latest }) {
     <div class="section__head">
       <p class="kicker">Für IT-Abteilungen</p>
       <h2>Was Notely tut – und was nicht.</h2>
-      <p>Notely ist eine lokale Notiz- und Aufgabenanwendung für Windows 11. Hersteller: Westcon. Lizenz: MIT. Der Installer ist derzeit nicht Authenticode-signiert; das ist der einzige Grund für die SmartScreen-Meldung. Wie die Dateien entstehen und wer sie freigibt, steht in der <a href="${GH}/blob/main/CODE_SIGNING.md" rel="noopener" style="color:var(--accent)">Code-Signing-Richtlinie</a>.</p>
+      <p>Notely ist eine lokale Notiz- und Aufgabenanwendung für Windows 11. Herausgeber: ${PUBLISHER}. Lizenz: MIT. Der Installer ist derzeit nicht Authenticode-signiert; das ist der einzige Grund für die SmartScreen-Meldung. Wie die Dateien entstehen und wer sie freigibt, steht in der <a href="${GH}/blob/main/CODE_SIGNING.md" rel="noopener" style="color:var(--accent)">Code-Signing-Richtlinie</a>.</p>
     </div>
     <ul class="checklist">
       ${facts.map(([t, d]) => `<li>${icon.checkCircle(18)}<div><strong>${t}</strong><span>${d}</span></div></li>`).join('\n      ')}

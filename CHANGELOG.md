@@ -6,6 +6,28 @@ Alle nennenswerten Änderungen an Notely. Das Format orientiert sich an
 
 ## [Unveröffentlicht]
 
+### Geändert
+
+- **Herausgeber heisst jetzt swisswest75** statt Westcon - in der Lizenz, im
+  Installer (Systemsteuerung → Programme), in den Dateieigenschaften der
+  `notely.exe` und auf der Website. Der winget-Name lautet entsprechend
+  `swisswest75.Notely`.
+- Der technische Bezeichner `ch.westcon.notely` bleibt. An ihm hängen die
+  Update-Signaturprüfung, die Windows-Benachrichtigungen und die Zuordnung
+  bestehender Installationen; ihn zu ändern, würde jede installierte Kopie
+  von den Updates abschneiden.
+- Bekannte Nebenwirkung des neuen Herausgebers: der Installer merkt sich den
+  Installationsordner unter dem Namen des Herausgebers in der Registry. Wer
+  die nächste Version **von Hand** über eine bestehende Installation
+  installiert und dabei „Vorher deinstallieren" wählt, bekommt einmalig eine
+  Fehlermeldung - dann „Nicht deinstallieren" wählen, das Update läuft durch.
+  Die automatischen Updates betrifft das nicht; sie deinstallieren nie vorher.
+- Website: der winget-Befehl steht jetzt auf der Startseite direkt unter dem
+  Download, mit Kopierknopf. Auf der IT-Seite klebten die nummerierten
+  Schritte am Hinweiskasten darüber; sie haben jetzt Abstand. Die FAQ
+  behauptete noch, automatische Updates seien „in Planung" - die gibt es seit
+  Langem.
+
 ### Geplant
 
 - Code-Signing gegen die SmartScreen-Warnung

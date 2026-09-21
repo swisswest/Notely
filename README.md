@@ -96,7 +96,7 @@ den Einstellungen; änderst du „Abend" auf 18:30, gilt das ab der nächsten An
 Am einfachsten über den Windows-Paketmanager:
 
 ```powershell
-winget install Westcon.Notely
+winget install swisswest75.Notely
 ```
 
 winget lädt die Datei selbst herunter, sie trägt deshalb keine

@@ -139,6 +139,20 @@ code, kbd { font-family: var(--mono); font-size: 0.875em; }
 .hero__cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 36px; }
 .hero__meta { margin-top: 14px; font-size: 13px; color: var(--text-faint); display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 14px; }
 .hero__meta span + span::before { content: '·'; margin-right: 14px; }
+.hero__winget { margin-top: 22px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.hero__winget > span { font-size: 12px; color: var(--text-faint); }
+/* Befehl zum Kopieren. Der ganze Kasten ist der Knopf - wer auf den Befehl
+   klickt, will ihn haben, nicht erst das kleine Symbol daneben treffen. */
+.cmd { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 7px 8px 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-subtle); color: var(--text-faint); font: inherit; font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s; }
+.cmd:hover { border-color: var(--border-strong); color: var(--text-muted); }
+.cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text); }
+.cmd code::before { content: '>'; margin-right: 8px; color: var(--text-faint); }
+/* Trennstrich vor dem Symbol, nicht vor dem Wort: auf dem Handy entfaellt
+   das Wort, und der Strich soll trotzdem Befehl und Aktion trennen. */
+.cmd svg { flex: none; box-sizing: content-box; padding-left: 10px; border-left: 1px solid var(--border); }
+.cmd span { margin-left: -4px; }
+.cmd.copied, .cmd.copied code::before { color: var(--success); }
+@media (max-width: 420px) { .cmd span { display: none; } }
 @media (max-width: 640px) { .hero { padding-top: 56px; } .hero__cta .btn { width: 100%; } }
 
 /* ---------- App-Mockup ---------- */
@@ -282,6 +296,9 @@ code, kbd { font-family: var(--mono); font-size: 0.875em; }
 
 /* Install */
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
+/* Folgen die Schritte auf einen Hinweiskasten, brauchen sie Abstand - sonst
+   klebt die erste Nummer an dessen unterem Rand. */
+.note + .steps { margin-top: 36px; }
 .step { counter-increment: s; }
 .step::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-strong); font-size: 13px; font-weight: 600; margin-bottom: 16px; }
 .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
